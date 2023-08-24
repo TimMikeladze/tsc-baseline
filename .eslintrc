@@ -1,0 +1,72 @@
+{
+  "env": {
+    "es2021": true,
+    "node": true
+  },
+  "extends": [
+    "standard",
+    "plugin:typescript-sort-keys/recommended",
+    "prettier"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaFeatures": {
+      "jsx": true
+    },
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "plugins": [
+    "@typescript-eslint",
+    "unused-imports",
+    "typescript-sort-keys",
+    "prefer-arrow",
+    "prettier",
+    "sort-class-members"
+  ],
+  "rules": {
+    "indent": "off",
+    "space-before-function-paren": "off",
+    "no-unused-vars": "off",
+    "unused-imports/no-unused-imports": "error",
+    "unused-imports/no-unused-vars": [
+      "warn",
+      {
+        "vars": "all",
+        "varsIgnorePattern": "^_",
+        "args": "after-used",
+        "argsIgnorePattern": "^_"
+      }
+    ],
+    "prettier/prettier": "error",
+    "import/extensions": "off",
+    "import/no-extraneous-dependencies": "off",
+    "import/no-unresolved": "off",
+    "import/prefer-default-export": "off",
+    "typescript-sort-keys/interface": "error",
+    "typescript-sort-keys/string-enum": "error",
+    "prefer-arrow/prefer-arrow-functions": [
+      "error",
+      {
+        "disallowPrototype": true,
+        "singleReturnOnly": true,
+        "classPropertiesAllowed": false
+      }
+    ],
+    "sort-class-members/sort-class-members": [
+      "error",
+      {
+        "order": [
+          "[static-properties]",
+          "[properties]",
+          "[conventional-private-properties]",
+          "constructor",
+          "[static-methods]",
+          "[methods]",
+          "[conventional-private-methods]"
+        ],
+        "accessorPairPositioning": "getThenSet"
+      }
+    ]
+  }
+}

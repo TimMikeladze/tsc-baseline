@@ -1,0 +1,101 @@
+{
+  "name": "tsc-baseline",
+  "version": "0.0.0",
+  "description": "Save a baseline of TypeScript errors and compare new errors against it. Useful for type-safe feature development in TypeScript projects that have a lot of errors. This tool will filter out errors that are already in the baseline and only show new errors.",
+  "author": "Tim Mikeladze <tim.mikeladze@gmail.com>",
+  "keywords": [
+    "tsc",
+    "errors",
+    "typescript",
+    "tsc errors",
+    "baseline",
+    "tsc baseline",
+    "typescript baseline"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:TimMikeladze/tsc-baseline.git"
+  },
+  "license": "MIT",
+  "files": [
+    "./dist"
+  ],
+  "source": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    "require": "./dist/index.cjs",
+    "default": "./dist/index.modern.js"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.module.js",
+  "unpkg": "./dist/index.umd.js",
+  "bin": "./dist/cli.module.js",
+  "scripts": {
+    "dev": "microbundle watch src/{index,cli}.ts -f esm",
+    "build": "yarn link:self && rm -rf dist && microbundle src/{index,cli}.ts && yalc publish",
+    "lint": "eslint --fix \"src/**/*.+(ts|tsx|js|jsx)\" && prettier --write .",
+    "test": "vitest --passWithNoTests",
+    "test:ci": "vitest run --coverage --passWithNoTests",
+    "type-check": "tsc",
+    "release": "release-it",
+    "commit": "commit-it",
+    "cli": "yarn build -f modern && node dist/cli.modern.js",
+    "link:self": "yalc link && yarn link"
+  },
+  "release-it": {
+    "git": {
+      "commitMessage": "🔖 | v${version}"
+    },
+    "github": {
+      "release": true
+    },
+    "npm": {
+      "publish": false
+    }
+  },
+  "lint-staged": {
+    "**/*.{ts,js,jsx,tsx}": "eslint --fix",
+    "*": "prettier --write"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "20.4.5",
+    "@types/object-hash": "3.0.3",
+    "@typescript-eslint/eslint-plugin": "6.2.0",
+    "@typescript-eslint/parser": "6.2.0",
+    "@vitest/coverage-v8": "0.33.0",
+    "commit-it": "0.0.11",
+    "eslint": "8.46.0",
+    "eslint-config-prettier": "8.9.0",
+    "eslint-config-standard": "17.1.0",
+    "eslint-plugin-import": "2.28.0",
+    "eslint-plugin-n": "16.0.1",
+    "eslint-plugin-node": "11.1.0",
+    "eslint-plugin-prefer-arrow": "1.2.3",
+    "eslint-plugin-prettier": "5.0.0",
+    "eslint-plugin-promise": "6.1.1",
+    "eslint-plugin-sort-class-members": "1.18.0",
+    "eslint-plugin-typescript-sort-keys": "2.3.0",
+    "eslint-plugin-unused-imports": "3.0.0",
+    "husky": "8.0.3",
+    "lint-staged": "13.2.3",
+    "microbundle": "0.15.1",
+    "prettier": "3.0.0",
+    "release-it": "16.1.3",
+    "typescript": "5.1.6",
+    "vitest": "0.33.0",
+    "yalc": "1.0.0-pre.53"
+  },
+  "dependencies": {
+    "commander": "11.0.0",
+    "object-hash": "3.0.0"
+  },
+  "resolutions": {
+    "semver": ">=6.3.1"
+  }
+}
