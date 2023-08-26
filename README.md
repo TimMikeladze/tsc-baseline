@@ -34,8 +34,16 @@ Running the following command will print out the new errors to the console.
 yarn tsc | yarn tsc-baseline check
 ```
 
+If you need to explicitly add an error to the baseline, you can do so by copying the error's hash from the console output and running the following command.
+
+```console
+yarn tsc-baseline add 1234
+```
+
+````console
+
 When you're done, you can delete the baseline file.
 
 ```console
 yarn tsc-baseline clear
-```
+````

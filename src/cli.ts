@@ -2,6 +2,7 @@
 
 import { Command } from 'commander'
 import {
+  addHashToBaseline,
   getNewErrors,
   parseTypeScriptErrors,
   readTypeScriptErrorsFromFile,
@@ -41,6 +42,15 @@ import { rmSync } from 'fs'
         writeTypeScriptErrorsToFile(parseTypeScriptErrors(message), config.path)
         console.log("\nSaved baseline errors to '" + config.path + "'")
       }
+    }
+  })
+
+  program.command('add [hash]').action((hash) => {
+    if (!hash) {
+      console.error('Missing hash')
+    } else {
+      const config = getConfig()
+      addHashToBaseline(hash, config.path)
     }
   })
 

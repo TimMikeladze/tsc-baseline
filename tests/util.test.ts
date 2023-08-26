@@ -8,7 +8,8 @@ import {
   writeTypeScriptErrorsToFile,
   readTypeScriptErrorsFromFile,
   getNewErrors,
-  toHumanReadableText
+  toHumanReadableText,
+  addHashToBaseline
 } from '../src'
 
 describe('Utility Functions', () => {
@@ -194,7 +195,8 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
           column: 5,
           file: 'file1.ts',
           line: 10,
-          message: 'Syntax error'
+          message: 'Syntax error',
+          hash: 'error1'
         }
       ],
       [
@@ -204,7 +206,8 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
           column: 12,
           file: 'file2.ts',
           line: 5,
-          message: 'Type mismatch'
+          message: 'Type mismatch',
+          hash: 'error2'
         }
       ]
     ])
@@ -214,14 +217,51 @@ File: file1.ts
 Message: Syntax error
 Code: E001
 Location: Line 10, Column 5
+Hash: error1
 
 File: file2.ts
 Message: Type mismatch
 Code: E002
 Location: Line 5, Column 12
+Hash: error2
     `.trim() // Remove leading newline
 
     const result = toHumanReadableText(errorMap)
     expect(result).toBe(expectedOutput)
+  })
+
+  it('add hash to baseline', () => {
+    const errorMap = new Map<string, ErrorInfo>()
+    errorMap.set('8d4f5b0a6c282e236e4f437a50410d72', {
+      code: 'error1234',
+      message: 'An error message for TS1234',
+      file: 'example.ts',
+      line: 5,
+      column: 10
+    })
+
+    const filePath = resolve(tempDir, 'test-errors.json')
+    writeTypeScriptErrorsToFile(errorMap, filePath)
+
+    addHashToBaseline('hash1234', filePath)
+
+    const fileContent = fs.readFileSync(filePath, 'utf-8')
+    const parsedContent = JSON.parse(fileContent)
+    expect(parsedContent).toEqual({
+      '8d4f5b0a6c282e236e4f437a50410d72': {
+        code: 'error1234',
+        message: 'An error message for TS1234',
+        file: 'example.ts',
+        line: 5,
+        column: 10
+      },
+      hash1234: {
+        code: '0000',
+        column: 0,
+        file: '0000',
+        line: 0,
+        message: '0000'
+      }
+    })
   })
 })

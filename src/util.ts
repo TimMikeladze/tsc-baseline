@@ -78,8 +78,28 @@ export const toHumanReadableText = (
     log += `File: ${error.file}\n`
     log += `Message: ${error.message}\n`
     log += `Code: ${error.code}\n`
-    log += `Location: Line ${error.line}, Column ${error.column}\n\n`
+    log += `Location: Line ${error.line}, Column ${error.column}\n`
+    log += `Hash: ${key}\n\n`
   }
 
   return log.trim()
+}
+
+export const addHashToBaseline = (hash: string, filepath: string): void => {
+  const oldErrors = readTypeScriptErrorsFromFile(filepath)
+  const newErrors = new Map<string, ErrorInfo>()
+
+  for (const [key, error] of oldErrors) {
+    newErrors.set(key, error)
+  }
+
+  newErrors.set(hash, {
+    code: '0000',
+    column: 0,
+    file: '0000',
+    line: 0,
+    message: '0000'
+  })
+
+  writeTypeScriptErrorsToFile(newErrors, filepath)
 }
