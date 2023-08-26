@@ -40,10 +40,8 @@ If you need to explicitly add an error to the baseline, you can do so by copying
 yarn tsc-baseline add 1234
 ```
 
-````console
-
 When you're done, you can delete the baseline file.
 
 ```console
 yarn tsc-baseline clear
-````
+```
