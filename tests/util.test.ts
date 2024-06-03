@@ -37,15 +37,14 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
 
     const errorMap = parseTypeScriptErrors(errorLog)
 
-    expect(errorMap.size).toBe(5)
+    expect(errorMap.size).toBe(3)
 
     const error1234 = errorMap.values().next().value as ErrorInfo
 
     expect(error1234.code).toBe('TS1005')
     expect(error1234.message).toBe("',' expected.")
     expect(error1234.file).toBe('src/util.ts')
-    expect(error1234.line).toBe(35)
-    expect(error1234.column).toBe(7)
+    expect(error1234.count).toBe(1)
   })
 
   it('writeTypeScriptErrorsToFile correctly writes errors to a file', () => {
@@ -54,8 +53,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
       code: 'error1234',
       message: 'An error message for TS1234',
       file: 'example.ts',
-      line: 5,
-      column: 10
+      count: 2
     })
 
     const filePath = resolve(tempDir, 'test-errors.json')
@@ -68,8 +66,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         code: 'error1234',
         message: 'An error message for TS1234',
         file: 'example.ts',
-        line: 5,
-        column: 10
+        count: 2
       }
     })
   })
@@ -83,8 +80,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
           code: 'error1234',
           message: 'An error message for TS1234',
           file: 'example.ts',
-          line: 5,
-          column: 10
+          count: 2
         }
       })
     )
@@ -97,8 +93,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     expect(errorInfo.code).toBe('error1234')
     expect(errorInfo.message).toBe('An error message for TS1234')
     expect(errorInfo.file).toBe('example.ts')
-    expect(errorInfo.line).toBe(5)
-    expect(errorInfo.column).toBe(10)
+    expect(errorInfo.count).toBe(2)
   })
 
   it('should return new errors', () => {
@@ -108,8 +103,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         {
           code: 'error1',
           file: 'file1.ts',
-          line: 10,
-          column: 5,
+          count: 2,
           message: 'Error 1'
         }
       ]
@@ -121,8 +115,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         {
           code: 'error1',
           file: 'file1.ts',
-          line: 10,
-          column: 5,
+          count: 2,
           message: 'Error 1'
         }
       ],
@@ -131,8 +124,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         {
           code: 'error2',
           file: 'file2.ts',
-          line: 20,
-          column: 3,
+          count: 1,
           message: 'Error 2'
         }
       ],
@@ -141,8 +133,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         {
           code: 'error3',
           file: 'file3.ts',
-          line: 5,
-          column: 15,
+          count: 1,
           message: 'Error 3'
         }
       ]
@@ -155,15 +146,14 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     expect(result.get('error3')).toEqual(newErrors.get('error3'))
   })
 
-  it('should return an empty map if there are no new errors', () => {
+  it('should return a new error if the number of those errors has increased', () => {
     const oldErrors = new Map<string, ErrorInfo>([
       [
         'error1',
         {
           code: 'error1',
           file: 'file1.ts',
-          line: 10,
-          column: 5,
+          count: 1,
           message: 'Error 1'
         }
       ]
@@ -175,8 +165,38 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         {
           code: 'error1',
           file: 'file1.ts',
-          line: 10,
-          column: 5,
+          count: 2,
+          message: 'Error 1'
+        }
+      ]
+    ])
+
+    const result = getNewErrors(oldErrors, newErrors)
+
+    expect(result.size).toBe(1) // error2 and error3 are new errors
+    expect(result.get('error1')).toEqual(newErrors.get('error1'))
+  })
+
+  it('should return an empty map if there are no new errors', () => {
+    const oldErrors = new Map<string, ErrorInfo>([
+      [
+        'error1',
+        {
+          code: 'error1',
+          file: 'file1.ts',
+          count: 1,
+          message: 'Error 1'
+        }
+      ]
+    ])
+
+    const newErrors = new Map<string, ErrorInfo>([
+      [
+        'error1',
+        {
+          code: 'error1',
+          file: 'file1.ts',
+          count: 1,
           message: 'Error 1'
         }
       ]
@@ -192,10 +212,9 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         'error1',
         {
           code: 'E001',
-          column: 5,
           file: 'file1.ts',
-          line: 10,
           message: 'Syntax error',
+          count: 2,
           hash: 'error1'
         }
       ],
@@ -203,10 +222,9 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         'error2',
         {
           code: 'E002',
-          column: 12,
           file: 'file2.ts',
-          line: 5,
           message: 'Type mismatch',
+          count: 1,
           hash: 'error2'
         }
       ]
@@ -216,13 +234,13 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
 File: file1.ts
 Message: Syntax error
 Code: E001
-Location: Line 10, Column 5
+Count of error type: 2
 Hash: error1
 
 File: file2.ts
 Message: Type mismatch
 Code: E002
-Location: Line 5, Column 12
+Count of error type: 1
 Hash: error2
     `.trim() // Remove leading newline
 
@@ -236,8 +254,7 @@ Hash: error2
       code: 'error1234',
       message: 'An error message for TS1234',
       file: 'example.ts',
-      line: 5,
-      column: 10
+      count: 1
     })
 
     const filePath = resolve(tempDir, 'test-errors.json')
@@ -252,15 +269,13 @@ Hash: error2
         code: 'error1234',
         message: 'An error message for TS1234',
         file: 'example.ts',
-        line: 5,
-        column: 10
+        count: 1
       },
       hash1234: {
         code: '0000',
-        column: 0,
         file: '0000',
-        line: 0,
-        message: '0000'
+        message: '0000',
+        count: 1
       }
     })
   })
