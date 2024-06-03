@@ -40,7 +40,7 @@ export const writeTypeScriptErrorsToFile = (
   map: Map<string, ErrorInfo>,
   filepath: string
 ): void => {
-  writeFileSync(filepath, JSON.stringify(Object.fromEntries(map)))
+  writeFileSync(filepath, JSON.stringify(Object.fromEntries(map), null, 2))
 }
 
 export const readTypeScriptErrorsFromFile = (

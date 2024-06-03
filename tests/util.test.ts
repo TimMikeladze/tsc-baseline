@@ -86,7 +86,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
           line: 5,
           column: 10
         }
-      })
+      }, null, 2)
     )
 
     const errorMap = readTypeScriptErrorsFromFile(filePath)
