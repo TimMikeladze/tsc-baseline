@@ -8,6 +8,7 @@ import {
   writeTypeScriptErrorsToFile,
   readTypeScriptErrorsFromFile,
   getNewErrors,
+  getTotalErrorsCount,
   toHumanReadableText,
   addHashToBaseline
 } from '../src'
@@ -165,7 +166,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         {
           code: 'error1',
           file: 'file1.ts',
-          count: 2,
+          count: 5,
           message: 'Error 1'
         }
       ]
@@ -174,7 +175,12 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     const result = getNewErrors(oldErrors, newErrors)
 
     expect(result.size).toBe(1) // error2 and error3 are new errors
-    expect(result.get('error1')).toEqual(newErrors.get('error1'))
+    expect(result.get('error1')).toEqual({
+      code: 'error1',
+      file: 'file1.ts',
+      count: 4,
+      message: 'Error 1'
+    })
   })
 
   it('should return an empty map if there are no new errors', () => {
@@ -206,6 +212,40 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
 
     expect(result.size).toBe(0) // No new errors
   })
+
+  it('counts all errors properly', () => {
+    const newErrors = new Map<string, ErrorInfo>([
+      [
+        'error1',
+        {
+          code: 'error1',
+          file: 'file1.ts',
+          count: 3,
+          message: 'Error 1'
+        }
+      ],
+      [
+        'error2',
+        {
+          code: 'error2',
+          file: 'file2.ts',
+          count: 1,
+          message: 'Error 2'
+        }
+      ],
+      [
+        'error3',
+        {
+          code: 'error3',
+          file: 'file3.ts',
+          count: 1,
+          message: 'Error 3'
+        }
+      ]
+    ])
+    expect(getTotalErrorsCount(newErrors)).toBe(5)
+  })
+
   it('should format error map to human-readable text', () => {
     const errorMap: Map<string, ErrorInfo> = new Map([
       [
@@ -234,13 +274,13 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
 File: file1.ts
 Message: Syntax error
 Code: E001
-Count of error type: 2
+Count of new errors: 2
 Hash: error1
 
 File: file2.ts
 Message: Type mismatch
 Code: E002
-Count of error type: 1
+Count of new errors: 1
 Hash: error2
     `.trim() // Remove leading newline
 
@@ -278,5 +318,69 @@ Hash: error2
         count: 1
       }
     })
+  })
+
+  it('does not show errors that have simply moved as new errors', () => {
+    const originalErrorLog = `warning package.json: License should be a valid SPDX license expression
+error Command failed with exit code 2.
+yarn run v1.22.19
+$ /Users/tim/workspace/tsc-baseline/node_modules/.bin/tsc
+src/util.ts(35,7): error TS1005: ',' expected.
+src/util.ts(35,12): error TS1389: 'if' is not allowed as a variable declaration name.
+src/util.ts(40,3): error TS1128: Declaration or statement expected.
+src/util.ts(43,1): error TS1128: Declaration or statement expected.
+src/util.ts(81,1): error TS1128: Declaration or statement expected.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
+
+    const originalErrorMap = parseTypeScriptErrors(originalErrorLog)
+
+    const newErrorLog = `warning package.json: License should be a valid SPDX license expression
+error Command failed with exit code 2.
+yarn run v1.22.19
+$ /Users/tim/workspace/tsc-baseline/node_modules/.bin/tsc
+src/util.ts(35,7): error TS1005: ',' expected.
+src/util.ts(35,22): error TS1389: 'if' is not allowed as a variable declaration name.
+src/util.ts(42,3): error TS1128: Declaration or statement expected.
+src/util.ts(43,1): error TS1128: Declaration or statement expected.
+src/util.ts(181,1): error TS1128: Declaration or statement expected.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
+
+    const newErrorMap = parseTypeScriptErrors(newErrorLog)
+
+    const newErrors = getNewErrors(originalErrorMap, newErrorMap)
+
+    expect(newErrors.size).toBe(0)
+  })
+
+  it('should properly count the number of new errors', () => {
+    const originalErrorLog = `warning package.json: License should be a valid SPDX license expression
+error Command failed with exit code 2.
+yarn run v1.22.19
+$ /Users/tim/workspace/tsc-baseline/node_modules/.bin/tsc
+src/util.ts(35,12): error TS1389: 'if' is not allowed as a variable declaration name.
+src/util.ts(40,3): error TS1128: Declaration or statement expected.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
+
+    const originalErrorMap = parseTypeScriptErrors(originalErrorLog)
+
+    const newErrorLog = `warning package.json: License should be a valid SPDX license expression
+error Command failed with exit code 2.
+yarn run v1.22.19
+$ /Users/tim/workspace/tsc-baseline/node_modules/.bin/tsc
+src/util.ts(35,7): error TS1005: ',' expected.
+src/util.ts(35,22): error TS1389: 'if' is not allowed as a variable declaration name.
+src/util.ts(42,3): error TS1128: Declaration or statement expected.
+src/util.ts(43,1): error TS1128: Declaration or statement expected.
+src/util.ts(181,1): error TS1128: Declaration or statement expected.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
+
+    const newErrorMap = parseTypeScriptErrors(newErrorLog)
+
+    const newErrors = getNewErrors(originalErrorMap, newErrorMap)
+    expect(newErrors.size).toBe(2)
+
+    const newErrorValues = [...newErrors.values()]
+    expect(newErrorValues[0].count).toBe(1) // TS1005 is a new error
+    expect(newErrorValues[1].count).toBe(2) // There are 2 more TS1128 errors now
   })
 })

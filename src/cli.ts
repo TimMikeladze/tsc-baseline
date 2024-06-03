@@ -6,6 +6,7 @@ import {
   getNewErrors,
   parseTypeScriptErrors,
   readTypeScriptErrorsFromFile,
+  getTotalErrorsCount,
   toHumanReadableText,
   writeTypeScriptErrorsToFile
 } from './util'
@@ -64,16 +65,19 @@ import { rmSync } from 'fs'
           oldErrors,
           parseTypeScriptErrors(message)
         )
-        const newErrorsCount =
-          newErrors.size === 0
-            ? '0 errors found'
-            : `${newErrors.size} error${newErrors.size > 1 ? 's' : ''} found`
+        const newErrorsCount = getTotalErrorsCount(newErrors)
+        const oldErrorsCount = getTotalErrorsCount(oldErrors)
 
-        console.error(`
+        const newErrorsCountMessage =
+          newErrorsCount === 0
+            ? '0 errors found'
+            : `${newErrorsCount} error${newErrorsCount > 1 ? 's' : ''} found`
+
+        console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
 ${toHumanReadableText(newErrors)}
 
-${newErrorsCount}. ${oldErrors.size} error${
-          oldErrors.size > 1 ? 's' : ''
+${newErrorsCountMessage}. ${oldErrorsCount} error${
+          oldErrorsCount > 1 ? 's' : ''
         } already in baseline.`)
       }
     }
