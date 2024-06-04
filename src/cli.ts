@@ -79,6 +79,11 @@ ${toHumanReadableText(newErrors)}
 ${newErrorsCountMessage}. ${oldErrorsCount} error${
           oldErrorsCount > 1 ? 's' : ''
         } already in baseline.`)
+
+        if (newErrorsCount > 0) {
+          // Exit with a failure code so new errors fail CI by default
+          process.exit(1)
+        }
       }
     }
   })
