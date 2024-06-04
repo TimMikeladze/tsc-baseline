@@ -3,10 +3,16 @@ import objectHash from 'object-hash'
 
 export interface ErrorInfo {
   code: string
-  column: number
   file: string
-  line: number
   message: string
+  count: number
+}
+
+// Hash just the error info, not the count so that we can easily
+// modify the count independently
+const getErrorInfoHash = (errorInfo: ErrorInfo) => {
+  const { count, ...rest } = errorInfo
+  return objectHash(rest)
 }
 
 export const parseTypeScriptErrors = (
@@ -21,14 +27,19 @@ export const parseTypeScriptErrors = (
     const match = line.match(errorPattern)
     if (match) {
       const [, file, lineStr, columnStr, code, message] = match
-      const error: ErrorInfo = {
+      let error: ErrorInfo = {
         file,
-        line: parseInt(lineStr),
-        column: parseInt(columnStr),
         code,
-        message
+        message,
+        count: 1
       }
-      const key = objectHash(error)
+      const key = getErrorInfoHash(error)
+
+      const existingError = errors.get(key)
+      if (existingError) {
+        error = { ...existingError }
+        error.count += 1
+      }
       errors.set(key, error)
     }
   }
@@ -63,11 +74,21 @@ export const getNewErrors = (
   for (const [id, error] of newErrors) {
     if (!oldErrors.has(id)) {
       result.set(id, error)
+    } else {
+      const oldErrCount = oldErrors.get(id)?.count ?? 0
+      const newErrCount = newErrors.get(id)?.count ?? 0
+      if (oldErrCount < newErrCount) {
+        const newErrors = { ...error, count: newErrCount - oldErrCount }
+        result.set(id, newErrors)
+      }
     }
   }
 
   return result
 }
+
+export const getTotalErrorsCount = (errorMap: Map<string, ErrorInfo>): number =>
+  [...errorMap.values()].reduce((sum, info) => sum + info.count, 0)
 
 export const toHumanReadableText = (
   errorMap: Map<string, ErrorInfo>
@@ -78,7 +99,7 @@ export const toHumanReadableText = (
     log += `File: ${error.file}\n`
     log += `Message: ${error.message}\n`
     log += `Code: ${error.code}\n`
-    log += `Location: Line ${error.line}, Column ${error.column}\n`
+    log += `Count of new errors: ${error.count}\n`
     log += `Hash: ${key}\n\n`
   }
 
@@ -95,10 +116,9 @@ export const addHashToBaseline = (hash: string, filepath: string): void => {
 
   newErrors.set(hash, {
     code: '0000',
-    column: 0,
     file: '0000',
-    line: 0,
-    message: '0000'
+    message: '0000',
+    count: 1
   })
 
   writeTypeScriptErrorsToFile(newErrors, filepath)
