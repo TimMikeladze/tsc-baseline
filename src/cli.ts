@@ -69,15 +69,13 @@ import { rmSync } from 'fs'
         const oldErrorsCount = getTotalErrorsCount(oldErrors)
 
         const newErrorsCountMessage =
-          newErrorsCount === 0
-            ? '0 errors found'
-            : `${newErrorsCount} error${newErrorsCount > 1 ? 's' : ''} found`
+          `${newErrorsCount} error${newErrorsCount == 1 ? '' : 's'} found`
 
         console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
 ${toHumanReadableText(newErrors)}
 
 ${newErrorsCountMessage}. ${oldErrorsCount} error${
-          oldErrorsCount > 1 ? 's' : ''
+          oldErrorsCount == 1 ? '' : 's'
         } already in baseline.`)
 
         if (newErrorsCount > 0) {
