@@ -88,7 +88,7 @@ export const getNewErrors = (
 }
 
 export const getTotalErrorsCount = (errorMap: Map<string, ErrorInfo>): number =>
-  [...errorMap.values()].reduce((sum, info) => sum + info.count, 0)
+  Array.from(errorMap.values()).reduce((sum, info) => sum + info.count, 0)
 
 export const toHumanReadableText = (
   errorMap: Map<string, ErrorInfo>
