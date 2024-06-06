@@ -75,7 +75,7 @@ import { rmSync } from 'fs'
 ${toHumanReadableText(newErrors)}
 
 ${newErrorsCountMessage}. ${oldErrorsCount} error${
-          oldErrorsCount == 1 ? '' : 's'
+          oldErrorsCount === 1 ? '' : 's'
         } already in baseline.`)
 
         if (newErrorsCount > 0) {
