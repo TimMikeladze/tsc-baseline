@@ -88,7 +88,11 @@ export const getNewErrors = (
 }
 
 export const getTotalErrorsCount = (errorMap: Map<string, ErrorInfo>): number =>
-  [...errorMap.values()].reduce((sum, info) => sum + info.count, 0)
+  // NOTE: Previously, this was written with an array spread, but there was a bug
+  // with microbundle that was incorrectly compiling that (see: https://github.com/TimMikeladze/tsc-baseline/issues/21).
+  // Until that is resolved or the bundler is switched for this repo, this has been
+  // rewritten with Array.from
+  Array.from(errorMap.values()).reduce((sum, info) => sum + info.count, 0)
 
 export const toHumanReadableText = (
   errorMap: Map<string, ErrorInfo>
