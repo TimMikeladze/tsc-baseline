@@ -4,13 +4,15 @@ import fs from 'fs'
 import { resolve } from 'path'
 import {
   parseTypeScriptErrors,
-  ErrorInfo,
+  ErrorSummary,
   writeTypeScriptErrorsToFile,
   readTypeScriptErrorsFromFile,
   getNewErrors,
   getTotalErrorsCount,
   toHumanReadableText,
-  addHashToBaseline
+  addHashToBaseline,
+  SpecificError,
+  summarizeErrors
 } from '../src'
 
 describe('Utility Functions', () => {
@@ -38,18 +40,29 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
 
     const errorMap = parseTypeScriptErrors(errorLog)
 
-    expect(errorMap.size).toBe(3)
+    expect(errorMap.size).toBe(5)
+    const firstError = errorMap.values().next().value as SpecificError
+    expect(firstError.code).toBe('TS1005')
+    expect(firstError.message).toBe("',' expected.")
+    expect(firstError.file).toBe('src/util.ts')
+    expect(firstError.line).toBe(35)
+    expect(firstError.column).toBe(7)
 
-    const error1234 = errorMap.values().next().value as ErrorInfo
+    const summaries = summarizeErrors(errorMap)
 
-    expect(error1234.code).toBe('TS1005')
-    expect(error1234.message).toBe("',' expected.")
-    expect(error1234.file).toBe('src/util.ts')
-    expect(error1234.count).toBe(1)
+    const errorTs1128 = Array.from(summaries.values()).find(
+      (summary) => summary.code == 'TS1128'
+    )
+    if (!errorTs1128) {
+      throw new Error('Could not find error TS1128 in the parsed result.')
+    }
+    expect(errorTs1128.message).toBe('Declaration or statement expected.')
+    expect(errorTs1128.file).toBe('src/util.ts')
+    expect(errorTs1128.count).toBe(3)
   })
 
   it('writeTypeScriptErrorsToFile correctly writes errors to a file', () => {
-    const errorMap = new Map<string, ErrorInfo>()
+    const errorMap = new Map<string, ErrorSummary>()
     errorMap.set('8d4f5b0a6c282e236e4f437a50410d72', {
       code: 'error1234',
       message: 'An error message for TS1234',
@@ -76,21 +89,25 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     const filePath = resolve(tempDir, 'test-errors.json')
     fs.writeFileSync(
       filePath,
-      JSON.stringify({
-        '8d4f5b0a6c282e236e4f437a50410d72': {
-          code: 'error1234',
-          message: 'An error message for TS1234',
-          file: 'example.ts',
-          count: 2
-        }
-      }, null, 2)
+      JSON.stringify(
+        {
+          '8d4f5b0a6c282e236e4f437a50410d72': {
+            code: 'error1234',
+            message: 'An error message for TS1234',
+            file: 'example.ts',
+            count: 2
+          }
+        },
+        null,
+        2
+      )
     )
 
     const errorMap = readTypeScriptErrorsFromFile(filePath)
     expect(errorMap.size).toBe(1)
     const errorInfo = errorMap.get(
       '8d4f5b0a6c282e236e4f437a50410d72'
-    ) as ErrorInfo
+    ) as ErrorSummary
     expect(errorInfo.code).toBe('error1234')
     expect(errorInfo.message).toBe('An error message for TS1234')
     expect(errorInfo.file).toBe('example.ts')
@@ -98,7 +115,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
   })
 
   it('should return new errors', () => {
-    const oldErrors = new Map<string, ErrorInfo>([
+    const oldErrors = new Map<string, ErrorSummary>([
       [
         'error1',
         {
@@ -110,7 +127,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
       ]
     ])
 
-    const newErrors = new Map<string, ErrorInfo>([
+    const newErrors = new Map<string, ErrorSummary>([
       [
         'error1',
         {
@@ -148,7 +165,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
   })
 
   it('should return a new error if the number of those errors has increased', () => {
-    const oldErrors = new Map<string, ErrorInfo>([
+    const oldErrors = new Map<string, ErrorSummary>([
       [
         'error1',
         {
@@ -160,7 +177,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
       ]
     ])
 
-    const newErrors = new Map<string, ErrorInfo>([
+    const newErrors = new Map<string, ErrorSummary>([
       [
         'error1',
         {
@@ -184,7 +201,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
   })
 
   it('should return an empty map if there are no new errors', () => {
-    const oldErrors = new Map<string, ErrorInfo>([
+    const oldErrors = new Map<string, ErrorSummary>([
       [
         'error1',
         {
@@ -196,7 +213,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
       ]
     ])
 
-    const newErrors = new Map<string, ErrorInfo>([
+    const newErrors = new Map<string, ErrorSummary>([
       [
         'error1',
         {
@@ -214,7 +231,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
   })
 
   it('counts all errors properly', () => {
-    const newErrors = new Map<string, ErrorInfo>([
+    const newErrors = new Map<string, ErrorSummary>([
       [
         'error1',
         {
@@ -247,49 +264,66 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
   })
 
   it('should format error map to human-readable text', () => {
-    const errorMap: Map<string, ErrorInfo> = new Map([
+    const specificErrorMap: Map<string, SpecificError> = new Map([
       [
         'error1',
         {
           code: 'E001',
           file: 'file1.ts',
           message: 'Syntax error',
-          count: 2,
-          hash: 'error1'
+          line: 1,
+          column: 2
         }
       ],
       [
         'error2',
         {
+          code: 'E001',
+          file: 'file1.ts',
+          message: 'Syntax error',
+          line: 3,
+          column: 4
+        }
+      ],
+      [
+        'error3',
+        {
           code: 'E002',
           file: 'file2.ts',
           message: 'Type mismatch',
-          count: 1,
-          hash: 'error2'
+          line: 5,
+          column: 6
         }
       ]
     ])
+
+    const errorSummaries = summarizeErrors(specificErrorMap)
 
     const expectedOutput = `
 File: file1.ts
 Message: Syntax error
 Code: E001
+Hash: f3f953ce4418dad07eb9aa5df5d846ffdf8f4b4d
 Count of new errors: 2
-Hash: error1
+2 current errors:
+file1.ts(1,2)
+file1.ts(3,4)
 
 File: file2.ts
 Message: Type mismatch
 Code: E002
+Hash: 08f2382addc40a426eec5ac4f57c144143460680
 Count of new errors: 1
-Hash: error2
+1 current error:
+file2.ts(5,6)
     `.trim() // Remove leading newline
 
-    const result = toHumanReadableText(errorMap)
+    const result = toHumanReadableText(errorSummaries, specificErrorMap)
     expect(result).toBe(expectedOutput)
   })
 
   it('add hash to baseline', () => {
-    const errorMap = new Map<string, ErrorInfo>()
+    const errorMap = new Map<string, ErrorSummary>()
     errorMap.set('8d4f5b0a6c282e236e4f437a50410d72', {
       code: 'error1234',
       message: 'An error message for TS1234',
@@ -347,7 +381,10 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
 
     const newErrorMap = parseTypeScriptErrors(newErrorLog)
 
-    const newErrors = getNewErrors(originalErrorMap, newErrorMap)
+    const newErrors = getNewErrors(
+      summarizeErrors(originalErrorMap),
+      summarizeErrors(newErrorMap)
+    )
 
     expect(newErrors.size).toBe(0)
   })
@@ -376,7 +413,10 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
 
     const newErrorMap = parseTypeScriptErrors(newErrorLog)
 
-    const newErrors = getNewErrors(originalErrorMap, newErrorMap)
+    const newErrors = getNewErrors(
+      summarizeErrors(originalErrorMap),
+      summarizeErrors(newErrorMap)
+    )
     expect(newErrors.size).toBe(2)
 
     const newErrorValues = [...newErrors.values()]

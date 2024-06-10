@@ -8,7 +8,8 @@ import {
   readTypeScriptErrorsFromFile,
   getTotalErrorsCount,
   toHumanReadableText,
-  writeTypeScriptErrorsToFile
+  writeTypeScriptErrorsToFile,
+  summarizeErrors
 } from './util'
 import { resolve } from 'path'
 import { rmSync } from 'fs'
@@ -40,7 +41,10 @@ import { rmSync } from 'fs'
       message = stdin
       if (message) {
         const config = getConfig()
-        writeTypeScriptErrorsToFile(parseTypeScriptErrors(message), config.path)
+        writeTypeScriptErrorsToFile(
+          summarizeErrors(parseTypeScriptErrors(message)),
+          config.path
+        )
         console.log("\nSaved baseline errors to '" + config.path + "'")
       }
     }
@@ -60,19 +64,22 @@ import { rmSync } from 'fs'
       message = stdin
       if (message) {
         const config = getConfig()
-        const oldErrors = readTypeScriptErrorsFromFile(config.path)
-        const newErrors = getNewErrors(
-          oldErrors,
-          parseTypeScriptErrors(message)
+        const oldErrorSummaries = readTypeScriptErrorsFromFile(config.path)
+        const currentSpecificErrors = parseTypeScriptErrors(message)
+        const currentErrorSummaries = summarizeErrors(currentSpecificErrors)
+        const newErrorSummaries = getNewErrors(
+          oldErrorSummaries,
+          currentErrorSummaries
         )
-        const newErrorsCount = getTotalErrorsCount(newErrors)
-        const oldErrorsCount = getTotalErrorsCount(oldErrors)
+        const newErrorsCount = getTotalErrorsCount(newErrorSummaries)
+        const oldErrorsCount = getTotalErrorsCount(oldErrorSummaries)
 
-        const newErrorsCountMessage =
-          `${newErrorsCount} new error${newErrorsCount === 1 ? '' : 's'} found`
+        const newErrorsCountMessage = `${newErrorsCount} new error${
+          newErrorsCount === 1 ? '' : 's'
+        } found`
 
         console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
-${toHumanReadableText(newErrors)}
+${toHumanReadableText(newErrorSummaries, currentSpecificErrors)}
 
 ${newErrorsCountMessage}. ${oldErrorsCount} error${
           oldErrorsCount === 1 ? '' : 's'
