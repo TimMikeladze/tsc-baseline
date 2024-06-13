@@ -16,6 +16,9 @@ export interface SpecificError {
   message: string
 }
 
+export type SpecificErrorsMap = Map<string, SpecificError[]>
+export type ErrorSummaryMap = Map<string, ErrorSummary>
+
 // Hash just the error summary, not the count so that we can easily
 // modify the count independently
 const getErrorSummaryHash = (errorSummary: ErrorSummary) => {
@@ -23,17 +26,14 @@ const getErrorSummaryHash = (errorSummary: ErrorSummary) => {
   return objectHash(rest)
 }
 
-const getSpecificErrorHash = (specificError: SpecificError) => {
-  return objectHash(specificError)
-}
-
-export const parseTypeScriptErrors = (
-  errorLog: string
-): Map<string, SpecificError> => {
+export const parseTypeScriptErrors = (errorLog: string): SpecificErrorsMap => {
   const errorPattern = /^(.+)\((\d+),(\d+)\): error (\w+): (.+)$/
 
   const lines = errorLog.split('\n')
-  const errors = new Map<string, SpecificError>()
+  const specificErrorsMap: SpecificErrorsMap = new Map<
+    string,
+    SpecificError[]
+  >()
 
   for (const line of lines) {
     const match = line.match(errorPattern)
@@ -46,42 +46,49 @@ export const parseTypeScriptErrors = (
         line: parseInt(lineStr),
         column: parseInt(columnStr)
       }
-      const key = getSpecificErrorHash(error)
-      errors.set(key, error)
+      const key = error.file
+      const existingFile = specificErrorsMap.get(key)
+      if (existingFile) {
+        existingFile.push(error)
+        specificErrorsMap.set(key, existingFile)
+      } else {
+        specificErrorsMap.set(key, [error])
+      }
     }
   }
 
-  return errors
+  return specificErrorsMap
 }
 
 export const summarizeErrors = (
-  specificErrors: Map<string, SpecificError>
-): Map<string, ErrorSummary> => {
+  specificErrors: SpecificErrorsMap
+): ErrorSummaryMap => {
   const summaries = new Map<string, ErrorSummary>()
 
-  for (const error of specificErrors.values()) {
-    const { file, code, message } = error
-    let errorSummary: ErrorSummary = {
-      file,
-      code,
-      message,
-      count: 1
-    }
-    const key = getErrorSummaryHash(errorSummary)
+  for (const fileErrors of specificErrors.values()) {
+    for (const error of fileErrors) {
+      const { file, code, message } = error
+      let errorSummary: ErrorSummary = {
+        file,
+        code,
+        message,
+        count: 1
+      }
+      const key = getErrorSummaryHash(errorSummary)
 
-    const existingError = summaries.get(key)
-    if (existingError) {
-      errorSummary = { ...existingError }
-      errorSummary.count += 1
+      const existingError = summaries.get(key)
+      if (existingError) {
+        errorSummary = { ...existingError }
+        errorSummary.count += 1
+      }
+      summaries.set(key, errorSummary)
     }
-    summaries.set(key, errorSummary)
   }
-
   return summaries
 }
 
 export const writeTypeScriptErrorsToFile = (
-  map: Map<string, ErrorSummary>,
+  map: ErrorSummaryMap,
   filepath: string
 ): void => {
   writeFileSync(filepath, JSON.stringify(Object.fromEntries(map), null, 2))
@@ -89,7 +96,7 @@ export const writeTypeScriptErrorsToFile = (
 
 export const readTypeScriptErrorsFromFile = (
   filepath: string
-): Map<string, ErrorSummary> => {
+): ErrorSummaryMap => {
   const text = readFileSync(filepath, {
     encoding: 'utf-8'
   })
@@ -99,9 +106,9 @@ export const readTypeScriptErrorsFromFile = (
 }
 
 export const getNewErrors = (
-  oldErrors: Map<string, ErrorSummary>,
-  newErrors: Map<string, ErrorSummary>
-): Map<string, ErrorSummary> => {
+  oldErrors: ErrorSummaryMap,
+  newErrors: ErrorSummaryMap
+): ErrorSummaryMap => {
   const result = new Map<string, ErrorSummary>()
 
   for (const [id, error] of newErrors) {
@@ -120,9 +127,7 @@ export const getNewErrors = (
   return result
 }
 
-export const getTotalErrorsCount = (
-  errorMap: Map<string, ErrorSummary>
-): number =>
+export const getTotalErrorsCount = (errorMap: ErrorSummaryMap): number =>
   // NOTE: Previously, this was written with an array spread, but there was a bug
   // with microbundle that was incorrectly compiling that (see: https://github.com/TimMikeladze/tsc-baseline/issues/21).
   // Until that is resolved or the bundler is switched for this repo, this has been
@@ -130,8 +135,8 @@ export const getTotalErrorsCount = (
   Array.from(errorMap.values()).reduce((sum, info) => sum + info.count, 0)
 
 export const toHumanReadableText = (
-  errorSummaryMap: Map<string, ErrorSummary>,
-  specificErrorMap: Map<string, SpecificError>
+  errorSummaryMap: ErrorSummaryMap,
+  specificErrorMap: SpecificErrorsMap
 ): string => {
   let log = ''
 
@@ -146,11 +151,11 @@ export const toHumanReadableText = (
     log += `Code: ${error.code}\n`
     log += `Hash: ${key}\n`
     log += `Count of new errors: ${error.count}\n`
-    log += `${specificErrors.size} current error${
-      specificErrors.size === 1 ? '' : 's'
+    log += `${specificErrors.length} current error${
+      specificErrors.length === 1 ? '' : 's'
     }:\n`
 
-    log += Array.from(specificErrors.values())
+    log += specificErrors
       .map(
         (specificError) =>
           `${specificError.file}(${specificError.line},${specificError.column})`
@@ -165,15 +170,17 @@ export const toHumanReadableText = (
 
 export const getSpecificErrorsMatchingSummary = (
   errorSummary: ErrorSummary,
-  specificErrorMap: Map<string, SpecificError>
-): Map<string, SpecificError> => {
-  return new Map(
-    Array.from(specificErrorMap.entries()).filter(
-      ([_key, specificError]) =>
-        specificError.file === errorSummary.file &&
-        specificError.message === errorSummary.message &&
-        specificError.code === errorSummary.code
-    )
+  specificErrorsMap: SpecificErrorsMap
+): SpecificError[] => {
+  return (
+    specificErrorsMap
+      .get(errorSummary.file)
+      ?.filter(
+        (specificError) =>
+          specificError.file === errorSummary.file &&
+          specificError.message === errorSummary.message &&
+          specificError.code === errorSummary.code
+      ) || []
   )
 }
 

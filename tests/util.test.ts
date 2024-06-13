@@ -12,7 +12,8 @@ import {
   toHumanReadableText,
   addHashToBaseline,
   SpecificError,
-  summarizeErrors
+  summarizeErrors,
+  SpecificErrorsMap
 } from '../src'
 
 describe('Utility Functions', () => {
@@ -36,12 +37,23 @@ src/util.ts(35,12): error TS1389: 'if' is not allowed as a variable declaration 
 src/util.ts(40,3): error TS1128: Declaration or statement expected.
 src/util.ts(43,1): error TS1128: Declaration or statement expected.
 src/util.ts(81,1): error TS1128: Declaration or statement expected.
+src/somethingElse.ts(2,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
     const errorMap = parseTypeScriptErrors(errorLog)
 
-    expect(errorMap.size).toBe(5)
-    const firstError = errorMap.values().next().value as SpecificError
+    expect(errorMap.size).toBe(2)
+    const utilFileErrors = errorMap.get('src/util.ts')
+    if (!utilFileErrors)
+      throw new Error(
+        'Could not find the errors for the util.ts file in the fake test data.'
+      )
+    const firstError: SpecificError = utilFileErrors[0]
+    if (!firstError) {
+      throw new Error(
+        'Could not find the first error for the util.ts file in the fake test data.'
+      )
+    }
     expect(firstError.code).toBe('TS1005')
     expect(firstError.message).toBe("',' expected.")
     expect(firstError.file).toBe('src/util.ts')
@@ -264,40 +276,41 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
   })
 
   it('should format error map to human-readable text', () => {
-    const specificErrorMap: Map<string, SpecificError> = new Map([
+    const specificErrorsMap: SpecificErrorsMap = new Map([
       [
-        'error1',
-        {
-          code: 'E001',
-          file: 'file1.ts',
-          message: 'Syntax error',
-          line: 1,
-          column: 2
-        }
+        'file1.ts',
+        [
+          {
+            code: 'E001',
+            file: 'file1.ts',
+            message: 'Syntax error',
+            line: 1,
+            column: 2
+          },
+          {
+            code: 'E001',
+            file: 'file1.ts',
+            message: 'Syntax error',
+            line: 3,
+            column: 4
+          }
+        ]
       ],
       [
-        'error2',
-        {
-          code: 'E001',
-          file: 'file1.ts',
-          message: 'Syntax error',
-          line: 3,
-          column: 4
-        }
-      ],
-      [
-        'error3',
-        {
-          code: 'E002',
-          file: 'file2.ts',
-          message: 'Type mismatch',
-          line: 5,
-          column: 6
-        }
+        'file2.ts',
+        [
+          {
+            code: 'E002',
+            file: 'file2.ts',
+            message: 'Type mismatch',
+            line: 5,
+            column: 6
+          }
+        ]
       ]
     ])
 
-    const errorSummaries = summarizeErrors(specificErrorMap)
+    const errorSummaries = summarizeErrors(specificErrorsMap)
 
     const expectedOutput = `
 File: file1.ts
@@ -318,7 +331,7 @@ Count of new errors: 1
 file2.ts(5,6)
     `.trim() // Remove leading newline
 
-    const result = toHumanReadableText(errorSummaries, specificErrorMap)
+    const result = toHumanReadableText(errorSummaries, specificErrorsMap)
     expect(result).toBe(expectedOutput)
   })
 

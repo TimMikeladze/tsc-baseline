@@ -1,0 +1,8 @@
+{
+  "8d4f5b0a6c282e236e4f437a50410d72": {
+    "code": "error1234",
+    "message": "An error message for TS1234",
+    "file": "example.ts",
+    "count": 2
+  }
+}
