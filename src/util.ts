@@ -19,6 +19,11 @@ export interface SpecificError {
 export type SpecificErrorsMap = Map<string, SpecificError[]>
 export type ErrorSummaryMap = Map<string, ErrorSummary>
 
+export interface ParsingResult {
+  errorSummaryMap: ErrorSummaryMap
+  specificErrorsMap: SpecificErrorsMap
+}
+
 // Hash just the error summary, not the count so that we can easily
 // modify the count independently
 const getErrorSummaryHash = (errorSummary: ErrorSummary) => {
@@ -26,7 +31,7 @@ const getErrorSummaryHash = (errorSummary: ErrorSummary) => {
   return objectHash(rest)
 }
 
-export const parseTypeScriptErrors = (errorLog: string): SpecificErrorsMap => {
+export const parseTypeScriptErrors = (errorLog: string): ParsingResult => {
   const errorPattern = /^(.+)\((\d+),(\d+)\): error (\w+): (.+)$/
 
   const lines = errorLog.split('\n')
@@ -34,6 +39,38 @@ export const parseTypeScriptErrors = (errorLog: string): SpecificErrorsMap => {
     string,
     SpecificError[]
   >()
+  const errorSummaryMap: ErrorSummaryMap = new Map<string, ErrorSummary>()
+
+  const addSpecificErrorToMap = (
+    filePathName: string,
+    error: SpecificError
+  ) => {
+    const existingFile = specificErrorsMap.get(filePathName)
+    if (existingFile) {
+      existingFile.push(error)
+      specificErrorsMap.set(filePathName, existingFile)
+    } else {
+      specificErrorsMap.set(filePathName, [error])
+    }
+  }
+
+  const addErrorToSummary = (error: SpecificError) => {
+    const { file, code, message } = error
+    let errorSummary: ErrorSummary = {
+      file,
+      code,
+      message,
+      count: 1
+    }
+    const key = getErrorSummaryHash(errorSummary)
+
+    const existingError = errorSummaryMap.get(key)
+    if (existingError) {
+      errorSummary = { ...existingError }
+      errorSummary.count += 1
+    }
+    errorSummaryMap.set(key, errorSummary)
+  }
 
   for (const line of lines) {
     const match = line.match(errorPattern)
@@ -46,45 +83,12 @@ export const parseTypeScriptErrors = (errorLog: string): SpecificErrorsMap => {
         line: parseInt(lineStr),
         column: parseInt(columnStr)
       }
-      const key = error.file
-      const existingFile = specificErrorsMap.get(key)
-      if (existingFile) {
-        existingFile.push(error)
-        specificErrorsMap.set(key, existingFile)
-      } else {
-        specificErrorsMap.set(key, [error])
-      }
+      addSpecificErrorToMap(error.file, error)
+      addErrorToSummary(error)
     }
   }
 
-  return specificErrorsMap
-}
-
-export const summarizeErrors = (
-  specificErrors: SpecificErrorsMap
-): ErrorSummaryMap => {
-  const summaries = new Map<string, ErrorSummary>()
-
-  for (const fileErrors of specificErrors.values()) {
-    for (const error of fileErrors) {
-      const { file, code, message } = error
-      let errorSummary: ErrorSummary = {
-        file,
-        code,
-        message,
-        count: 1
-      }
-      const key = getErrorSummaryHash(errorSummary)
-
-      const existingError = summaries.get(key)
-      if (existingError) {
-        errorSummary = { ...existingError }
-        errorSummary.count += 1
-      }
-      summaries.set(key, errorSummary)
-    }
-  }
-  return summaries
+  return { specificErrorsMap, errorSummaryMap }
 }
 
 export const writeTypeScriptErrorsToFile = (

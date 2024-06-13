@@ -12,8 +12,8 @@ import {
   toHumanReadableText,
   addHashToBaseline,
   SpecificError,
-  summarizeErrors,
-  SpecificErrorsMap
+  SpecificErrorsMap,
+  ErrorSummaryMap
 } from '../src'
 
 describe('Utility Functions', () => {
@@ -40,10 +40,11 @@ src/util.ts(81,1): error TS1128: Declaration or statement expected.
 src/somethingElse.ts(2,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const errorMap = parseTypeScriptErrors(errorLog)
+    const { specificErrorsMap, errorSummaryMap } =
+      parseTypeScriptErrors(errorLog)
 
-    expect(errorMap.size).toBe(2)
-    const utilFileErrors = errorMap.get('src/util.ts')
+    expect(specificErrorsMap.size).toBe(2)
+    const utilFileErrors = specificErrorsMap.get('src/util.ts')
     if (!utilFileErrors)
       throw new Error(
         'Could not find the errors for the util.ts file in the fake test data.'
@@ -60,9 +61,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     expect(firstError.line).toBe(35)
     expect(firstError.column).toBe(7)
 
-    const summaries = summarizeErrors(errorMap)
-
-    const errorTs1128 = Array.from(summaries.values()).find(
+    const errorTs1128 = Array.from(errorSummaryMap.values()).find(
       (summary) => summary.code == 'TS1128'
     )
     if (!errorTs1128) {
@@ -310,7 +309,26 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
       ]
     ])
 
-    const errorSummaries = summarizeErrors(specificErrorsMap)
+    const errorSummaryMap: ErrorSummaryMap = new Map([
+      [
+        'f3f953ce4418dad07eb9aa5df5d846ffdf8f4b4d',
+        {
+          code: 'E001',
+          file: 'file1.ts',
+          message: 'Syntax error',
+          count: 2
+        }
+      ],
+      [
+        '08f2382addc40a426eec5ac4f57c144143460680',
+        {
+          code: 'E002',
+          file: 'file2.ts',
+          message: 'Type mismatch',
+          count: 1
+        }
+      ]
+    ])
 
     const expectedOutput = `
 File: file1.ts
@@ -331,7 +349,7 @@ Count of new errors: 1
 file2.ts(5,6)
     `.trim() // Remove leading newline
 
-    const result = toHumanReadableText(errorSummaries, specificErrorsMap)
+    const result = toHumanReadableText(errorSummaryMap, specificErrorsMap)
     expect(result).toBe(expectedOutput)
   })
 
@@ -379,7 +397,7 @@ src/util.ts(43,1): error TS1128: Declaration or statement expected.
 src/util.ts(81,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const originalErrorMap = parseTypeScriptErrors(originalErrorLog)
+    const originalErrorsParsingResult = parseTypeScriptErrors(originalErrorLog)
 
     const newErrorLog = `warning package.json: License should be a valid SPDX license expression
 error Command failed with exit code 2.
@@ -392,11 +410,11 @@ src/util.ts(43,1): error TS1128: Declaration or statement expected.
 src/util.ts(181,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const newErrorMap = parseTypeScriptErrors(newErrorLog)
+    const newErrorsParsingResult = parseTypeScriptErrors(newErrorLog)
 
     const newErrors = getNewErrors(
-      summarizeErrors(originalErrorMap),
-      summarizeErrors(newErrorMap)
+      originalErrorsParsingResult.errorSummaryMap,
+      newErrorsParsingResult.errorSummaryMap
     )
 
     expect(newErrors.size).toBe(0)
@@ -411,7 +429,7 @@ src/util.ts(35,12): error TS1389: 'if' is not allowed as a variable declaration 
 src/util.ts(40,3): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const originalErrorMap = parseTypeScriptErrors(originalErrorLog)
+    const originalErrorsParsingResult = parseTypeScriptErrors(originalErrorLog)
 
     const newErrorLog = `warning package.json: License should be a valid SPDX license expression
 error Command failed with exit code 2.
@@ -424,11 +442,11 @@ src/util.ts(43,1): error TS1128: Declaration or statement expected.
 src/util.ts(181,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const newErrorMap = parseTypeScriptErrors(newErrorLog)
+    const newErrorsParsingResult = parseTypeScriptErrors(newErrorLog)
 
     const newErrors = getNewErrors(
-      summarizeErrors(originalErrorMap),
-      summarizeErrors(newErrorMap)
+      originalErrorsParsingResult.errorSummaryMap,
+      newErrorsParsingResult.errorSummaryMap
     )
     expect(newErrors.size).toBe(2)
 

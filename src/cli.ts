@@ -8,8 +8,7 @@ import {
   readTypeScriptErrorsFromFile,
   getTotalErrorsCount,
   toHumanReadableText,
-  writeTypeScriptErrorsToFile,
-  summarizeErrors
+  writeTypeScriptErrorsToFile
 } from './util'
 import { resolve } from 'path'
 import { rmSync } from 'fs'
@@ -42,7 +41,7 @@ import { rmSync } from 'fs'
       if (message) {
         const config = getConfig()
         writeTypeScriptErrorsToFile(
-          summarizeErrors(parseTypeScriptErrors(message)),
+          parseTypeScriptErrors(message).errorSummaryMap,
           config.path
         )
         console.log("\nSaved baseline errors to '" + config.path + "'")
@@ -65,11 +64,11 @@ import { rmSync } from 'fs'
       if (message) {
         const config = getConfig()
         const oldErrorSummaries = readTypeScriptErrorsFromFile(config.path)
-        const currentSpecificErrors = parseTypeScriptErrors(message)
-        const currentErrorSummaries = summarizeErrors(currentSpecificErrors)
+        const { specificErrorsMap, errorSummaryMap } =
+          parseTypeScriptErrors(message)
         const newErrorSummaries = getNewErrors(
           oldErrorSummaries,
-          currentErrorSummaries
+          errorSummaryMap
         )
         const newErrorsCount = getTotalErrorsCount(newErrorSummaries)
         const oldErrorsCount = getTotalErrorsCount(oldErrorSummaries)
@@ -79,7 +78,7 @@ import { rmSync } from 'fs'
         } found`
 
         console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
-${toHumanReadableText(newErrorSummaries, currentSpecificErrors)}
+${toHumanReadableText(newErrorSummaries, specificErrorsMap)}
 
 ${newErrorsCountMessage}. ${oldErrorsCount} error${
           oldErrorsCount === 1 ? '' : 's'
