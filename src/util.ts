@@ -48,7 +48,6 @@ export const parseTypeScriptErrors = (errorLog: string): ParsingResult => {
     const existingFile = specificErrorsMap.get(filePathName)
     if (existingFile) {
       existingFile.push(error)
-      specificErrorsMap.set(filePathName, existingFile)
     } else {
       specificErrorsMap.set(filePathName, [error])
     }
