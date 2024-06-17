@@ -24,7 +24,7 @@ describe('Utility Functions', () => {
   })
 
   afterAll(() => {
-    fs.rmdirSync(tempDir, { recursive: true })
+    fs.rmSync(tempDir, { recursive: true })
   })
 
   it('parseTypeScriptErrors correctly parses errors', () => {
