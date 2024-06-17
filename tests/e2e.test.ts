@@ -58,10 +58,13 @@ const cli = (
         })
       }
     )
+    // NOTE: Currently running this cli utility without stdin isn't fully supported
+    // because process.stdin.isTTY (which is currently used to check if the CLI is
+    // run without stdio) isn't defined for child processes: https://github.com/nodejs/node/issues/51750
     if (stdin !== null) {
       cliProcess.stdin?.write(stdin)
+      cliProcess.stdin?.end()
     }
-    cliProcess.stdin?.end()
   })
 
 /**
@@ -164,17 +167,6 @@ describe('End-to-end tests', () => {
           }
         }"
       `)
-    })
-  })
-
-  describe('clear', () => {
-    it('removes the baseline file when running clear', async () => {
-      await cli('save', ' ')
-      expect(fs.existsSync(getBaselinePath())).toBe(true)
-      const clearOutput = await cli('clear')
-      expect(clearOutput.stderr).toBe('')
-      expect(clearOutput.code).toBe(0)
-      expect(fs.existsSync(getBaselinePath())).toBe(false)
     })
   })
 
