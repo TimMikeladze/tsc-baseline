@@ -202,8 +202,10 @@ describe('End-to-end tests', () => {
         File: src/util.ts
         Message: Type 'number' is not assignable to type 'string'.
         Code: TS2322
-        Count of new errors: 1
         Hash: 74fbc5bc3645b575167c6eca966b224014ff7e42
+        Count of new errors: 1
+        1 current error:
+        src/util.ts(134,7)
 
         1 new error found. 0 errors already in baseline.
         "
@@ -235,8 +237,10 @@ describe('End-to-end tests', () => {
         File: src/util.ts
         Message: Type '{ invalid: number; }' is not assignable to type 'number'.
         Code: TS2322
-        Count of new errors: 1
         Hash: c1b4ab07321ca58aac93307f3be23bc0a8592ee7
+        Count of new errors: 1
+        1 current error:
+        src/util.ts(135,7)
 
         1 new error found. 1 error already in baseline.
         "
