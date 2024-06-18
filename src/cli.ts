@@ -32,10 +32,16 @@ import { rmSync } from 'fs'
     `Path to file to save baseline errors to. Defaults to .tsc-baseline.json`
   )
 
+  program.option(
+    '--ignoreMessages',
+    'Ignores specific type error messages and only counts errors by code.'
+  )
+
   const getConfig = () => {
     const config = program.opts()
     return {
-      path: resolve(process.cwd(), config.path || '.tsc-baseline.json')
+      path: resolve(process.cwd(), config.path || '.tsc-baseline.json'),
+      ignoreMessages: config.ignoreMessages || false
     }
   }
 
@@ -44,9 +50,13 @@ import { rmSync } from 'fs'
       message = stdin
       if (message) {
         const config = getConfig()
+        const errorOptions = {
+          ignoreMessages: config.ignoreMessages
+        }
         writeTypeScriptErrorsToFile(
-          parseTypeScriptErrors(message).errorSummaryMap,
-          config.path
+          parseTypeScriptErrors(message, errorOptions).errorSummaryMap,
+          config.path,
+          errorOptions
         )
         console.log("\nSaved baseline errors to '" + config.path + "'")
       }
@@ -106,8 +116,13 @@ Are your installed packages up to date?
         }
 
         const oldErrorSummaries = getErrorSummaryMap(baselineFile)
-        const { specificErrorsMap, errorSummaryMap } =
-          parseTypeScriptErrors(message)
+        const errorOptions = {
+          ignoreMessages: baselineFile.meta.ignoreMessages
+        }
+        const { specificErrorsMap, errorSummaryMap } = parseTypeScriptErrors(
+          message,
+          errorOptions
+        )
         const newErrorSummaries = getNewErrors(
           oldErrorSummaries,
           errorSummaryMap
@@ -120,7 +135,7 @@ Are your installed packages up to date?
         } found`
 
         console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
-${toHumanReadableText(newErrorSummaries, specificErrorsMap)}
+${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
 
 ${newErrorsCountMessage}. ${oldErrorsCount} error${
           oldErrorsCount === 1 ? '' : 's'

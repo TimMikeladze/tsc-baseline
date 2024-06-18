@@ -25,6 +25,7 @@ export interface OldBaselineFile {
 export interface BaselineFile {
   meta: {
     baselineFileVersion: number
+    ignoreMessages: boolean
   }
   // eslint-disable-next-line typescript-sort-keys/interface
   errors: {
@@ -40,14 +41,27 @@ export interface ParsingResult {
   specificErrorsMap: SpecificErrorsMap
 }
 
-// Hash just the error summary, not the count so that we can easily
-// modify the count independently
-const getErrorSummaryHash = (errorSummary: ErrorSummary) => {
-  const { count, ...rest } = errorSummary
-  return objectHash(rest)
+type ErrorOptions = {
+  ignoreMessages: boolean
 }
 
-export const parseTypeScriptErrors = (errorLog: string): ParsingResult => {
+// Hash just the error summary, not the count so that we can easily
+// modify the count independently
+const getErrorSummaryHash = (
+  errorSummary: ErrorSummary,
+  { ignoreMessages }: ErrorOptions
+) => {
+  const { code, file, message } = errorSummary
+  if (ignoreMessages) {
+    return objectHash({ code, file })
+  }
+  return objectHash({ code, file, message })
+}
+
+export const parseTypeScriptErrors = (
+  errorLog: string,
+  { ignoreMessages }: ErrorOptions
+): ParsingResult => {
   const errorPattern = /^(.+)\((\d+),(\d+)\): error (\w+): (.+)$/
 
   const lines = errorLog.split('\n')
@@ -74,10 +88,12 @@ export const parseTypeScriptErrors = (errorLog: string): ParsingResult => {
     let errorSummary: ErrorSummary = {
       file,
       code,
-      message,
       count: 1
     }
-    const key = getErrorSummaryHash(errorSummary)
+    if (!ignoreMessages) {
+      errorSummary.message = message
+    }
+    const key = getErrorSummaryHash(errorSummary, { ignoreMessages })
 
     const existingError = errorSummaryMap.get(key)
     if (existingError) {
@@ -108,11 +124,13 @@ export const parseTypeScriptErrors = (errorLog: string): ParsingResult => {
 
 export const writeTypeScriptErrorsToFile = (
   map: ErrorSummaryMap,
-  filepath: string
+  filepath: string,
+  errorOptions: ErrorOptions
 ): void => {
   const newBaselineFile: BaselineFile = {
     meta: {
-      baselineFileVersion: CURRENT_BASELINE_VERSION
+      baselineFileVersion: CURRENT_BASELINE_VERSION,
+      ignoreMessages: errorOptions.ignoreMessages
     },
     errors: Object.fromEntries(map)
   }
@@ -181,18 +199,22 @@ export const getTotalErrorsCount = (errorMap: ErrorSummaryMap): number =>
 
 export const toHumanReadableText = (
   errorSummaryMap: ErrorSummaryMap,
-  specificErrorMap: SpecificErrorsMap
+  specificErrorMap: SpecificErrorsMap,
+  errorOptions: ErrorOptions
 ): string => {
   let log = ''
 
   for (const [key, error] of errorSummaryMap) {
     const specificErrors = getSpecificErrorsMatchingSummary(
       error,
-      specificErrorMap
+      specificErrorMap,
+      errorOptions
     )
 
     log += `File: ${error.file}\n`
-    log += `Message: ${error.message}\n`
+    if (error.message) {
+      log += `Message: ${error.message}\n`
+    }
     log += `Code: ${error.code}\n`
     log += `Hash: ${key}\n`
     log += `Count of new errors: ${error.count}\n`
@@ -215,7 +237,8 @@ export const toHumanReadableText = (
 
 export const getSpecificErrorsMatchingSummary = (
   errorSummary: ErrorSummary,
-  specificErrorsMap: SpecificErrorsMap
+  specificErrorsMap: SpecificErrorsMap,
+  errorOptions: ErrorOptions
 ): SpecificError[] => {
   return (
     specificErrorsMap
@@ -223,7 +246,9 @@ export const getSpecificErrorsMatchingSummary = (
       ?.filter(
         (specificError) =>
           specificError.file === errorSummary.file &&
-          specificError.message === errorSummary.message &&
+          (errorOptions.ignoreMessages
+            ? true
+            : specificError.message === errorSummary.message) &&
           specificError.code === errorSummary.code
       ) || []
   )
@@ -251,5 +276,7 @@ export const addHashToBaseline = (hash: string, filepath: string): void => {
     count: 1
   })
 
-  writeTypeScriptErrorsToFile(newErrors, filepath)
+  writeTypeScriptErrorsToFile(newErrors, filepath, {
+    ignoreMessages: baselineErrorsFile.meta.ignoreMessages
+  })
 }

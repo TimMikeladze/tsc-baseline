@@ -43,8 +43,10 @@ src/util.ts(81,1): error TS1128: Declaration or statement expected.
 src/somethingElse.ts(2,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const { specificErrorsMap, errorSummaryMap } =
-      parseTypeScriptErrors(errorLog)
+    const { specificErrorsMap, errorSummaryMap } = parseTypeScriptErrors(
+      errorLog,
+      { ignoreMessages: false }
+    )
 
     expect(specificErrorsMap.size).toBe(2)
     const utilFileErrors = specificErrorsMap.get('src/util.ts')
@@ -85,13 +87,14 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     })
 
     const filePath = resolve(tempDir, 'test-errors.json')
-    writeTypeScriptErrorsToFile(errorMap, filePath)
+    writeTypeScriptErrorsToFile(errorMap, filePath, { ignoreMessages: false })
 
     const fileContent = fs.readFileSync(filePath, 'utf-8')
     const parsedContent = JSON.parse(fileContent)
     expect(parsedContent).toEqual({
       meta: {
-        baselineFileVersion: 1
+        baselineFileVersion: 1,
+        ignoreMessages: false
       },
       errors: {
         '8d4f5b0a6c282e236e4f437a50410d72': {
@@ -123,7 +126,8 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
       JSON.stringify(
         {
           meta: {
-            baselineFileVersion: 1
+            baselineFileVersion: 1,
+            ignoreMessages: false
           },
           errors: {
             '8d4f5b0a6c282e236e4f437a50410d72': {
@@ -374,7 +378,9 @@ Count of new errors: 1
 file2.ts(5,6)
     `.trim() // Remove leading newline
 
-    const result = toHumanReadableText(errorSummaryMap, specificErrorsMap)
+    const result = toHumanReadableText(errorSummaryMap, specificErrorsMap, {
+      ignoreMessages: false
+    })
     expect(result).toBe(expectedOutput)
   })
 
@@ -388,7 +394,7 @@ file2.ts(5,6)
     })
 
     const filePath = resolve(tempDir, 'test-errors.json')
-    writeTypeScriptErrorsToFile(errorMap, filePath)
+    writeTypeScriptErrorsToFile(errorMap, filePath, { ignoreMessages: false })
 
     addHashToBaseline('hash1234', filePath)
 
@@ -396,7 +402,8 @@ file2.ts(5,6)
     const parsedContent = JSON.parse(fileContent)
     expect(parsedContent).toEqual({
       meta: {
-        baselineFileVersion: 1
+        baselineFileVersion: 1,
+        ignoreMessages: false
       },
       errors: {
         '8d4f5b0a6c282e236e4f437a50410d72': {
@@ -427,7 +434,10 @@ src/util.ts(43,1): error TS1128: Declaration or statement expected.
 src/util.ts(81,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const originalErrorsParsingResult = parseTypeScriptErrors(originalErrorLog)
+    const originalErrorsParsingResult = parseTypeScriptErrors(
+      originalErrorLog,
+      { ignoreMessages: false }
+    )
 
     const newErrorLog = `warning package.json: License should be a valid SPDX license expression
 error Command failed with exit code 2.
@@ -440,7 +450,9 @@ src/util.ts(43,1): error TS1128: Declaration or statement expected.
 src/util.ts(181,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const newErrorsParsingResult = parseTypeScriptErrors(newErrorLog)
+    const newErrorsParsingResult = parseTypeScriptErrors(newErrorLog, {
+      ignoreMessages: false
+    })
 
     const newErrors = getNewErrors(
       originalErrorsParsingResult.errorSummaryMap,
@@ -459,7 +471,10 @@ src/util.ts(35,12): error TS1389: 'if' is not allowed as a variable declaration 
 src/util.ts(40,3): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const originalErrorsParsingResult = parseTypeScriptErrors(originalErrorLog)
+    const originalErrorsParsingResult = parseTypeScriptErrors(
+      originalErrorLog,
+      { ignoreMessages: false }
+    )
 
     const newErrorLog = `warning package.json: License should be a valid SPDX license expression
 error Command failed with exit code 2.
@@ -472,7 +487,9 @@ src/util.ts(43,1): error TS1128: Declaration or statement expected.
 src/util.ts(181,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const newErrorsParsingResult = parseTypeScriptErrors(newErrorLog)
+    const newErrorsParsingResult = parseTypeScriptErrors(newErrorLog, {
+      ignoreMessages: false
+    })
 
     const newErrors = getNewErrors(
       originalErrorsParsingResult.errorSummaryMap,
