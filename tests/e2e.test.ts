@@ -139,7 +139,7 @@ describe('End-to-end tests', () => {
   })
 
   describe('save', () => {
-    it('writes an empty object file when there are no errors', async () => {
+    it('writes a file with no recorded errors when there are no TypeScript errors', async () => {
       const output = await cli('save', ' ')
 
       expect(output.error).toBeNull()
@@ -148,7 +148,15 @@ describe('End-to-end tests', () => {
         new RegExp(`Saved baseline errors to '${getBaselinePath()}'`)
       )
       expect(fs.existsSync(getBaselinePath())).toBe(true)
-      expect(fs.readFileSync(getBaselinePath(), 'utf-8')).toBe('{}')
+      expect(fs.readFileSync(getBaselinePath(), 'utf-8'))
+        .toMatchInlineSnapshot(`
+        "{
+          \\"meta\\": {
+            \\"baselineFileVersion\\": 1
+          },
+          \\"errors\\": {}
+        }"
+      `)
     })
 
     it('saves errors on separate lines so that it works well with version control', async () => {
@@ -159,11 +167,16 @@ describe('End-to-end tests', () => {
       expect(baselineFileContent.split('\n').length).toBeGreaterThan(1)
       expect(baselineFileContent).toMatchInlineSnapshot(`
         "{
-          \\"74fbc5bc3645b575167c6eca966b224014ff7e42\\": {
-            \\"file\\": \\"src/util.ts\\",
-            \\"code\\": \\"TS2322\\",
-            \\"message\\": \\"Type 'number' is not assignable to type 'string'.\\",
-            \\"count\\": 1
+          \\"meta\\": {
+            \\"baselineFileVersion\\": 1
+          },
+          \\"errors\\": {
+            \\"74fbc5bc3645b575167c6eca966b224014ff7e42\\": {
+              \\"file\\": \\"src/util.ts\\",
+              \\"code\\": \\"TS2322\\",
+              \\"message\\": \\"Type 'number' is not assignable to type 'string'.\\",
+              \\"count\\": 1
+            }
           }
         }"
       `)
@@ -237,6 +250,61 @@ describe('End-to-end tests', () => {
         1 new error found. 1 error already in baseline.
         "
       `)
+    })
+
+    it('gives a helpful error if no baseline file is found', async () => {
+      const checkOutput = await cli('check', ' ')
+
+      expect(checkOutput.code).toBe(1)
+      expect(checkOutput.stderr).toMatch(
+        new RegExp(
+          `Unable to read the .tsc-baseline.json file at "${getBaselinePath()}".`
+        )
+      )
+      expect(checkOutput.stderr).toMatch(
+        /Has the baseline file been properly saved with the 'save' command\?/
+      )
+    })
+
+    it('fails if using an earlier version of the baseline errors file that does not have metadata', async () => {
+      fs.writeFileSync(getBaselinePath(), '{}')
+
+      const checkOutput = await cli('check', ' ')
+
+      expect(checkOutput.code).toBe(1)
+      expect(checkOutput.stderr).toMatch(
+        new RegExp(
+          `The .tsc-baseline.json file at "${getBaselinePath()}"\nis out of date for this version of tsc-baseline.`
+        )
+      )
+      expect(checkOutput.stderr).toMatch(
+        /Please update the baseline file using the 'save' command./
+      )
+    })
+
+    it('warns about being the wrong package version if the baseline file version is a future version', async () => {
+      fs.writeFileSync(
+        getBaselinePath(),
+        JSON.stringify(
+          {
+            meta: { baselineFileVersion: 10000 },
+            errors: {}
+          },
+          null,
+          2
+        )
+      )
+      const checkOutput = await cli('check', ' ')
+
+      expect(checkOutput.code).toBe(1)
+      expect(checkOutput.stderr).toMatch(
+        new RegExp(
+          `The .tsc-baseline.json file at "${getBaselinePath()}"\nis from a future version of tsc-baseline.`
+        )
+      )
+      expect(checkOutput.stderr).toMatch(
+        /Are your installed packages up to date\?/
+      )
     })
   })
 })

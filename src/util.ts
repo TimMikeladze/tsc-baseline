@@ -1,11 +1,13 @@
 import { readFileSync, writeFileSync } from 'fs'
 import objectHash from 'object-hash'
 
+export const CURRENT_BASELINE_VERSION = 1
+
 export interface ErrorSummary {
   code: string
   count: number
   file: string
-  message: string
+  message?: string
 }
 
 export interface SpecificError {
@@ -14,6 +16,20 @@ export interface SpecificError {
   file: string
   line: number
   message: string
+}
+
+export interface OldBaselineFile {
+  [hash: string]: ErrorSummary | SpecificError
+}
+
+export interface BaselineFile {
+  meta: {
+    baselineFileVersion: number
+  }
+  // eslint-disable-next-line typescript-sort-keys/interface
+  errors: {
+    [hash: string]: ErrorSummary
+  }
 }
 
 export type SpecificErrorsMap = Map<string, SpecificError[]>
@@ -94,18 +110,44 @@ export const writeTypeScriptErrorsToFile = (
   map: ErrorSummaryMap,
   filepath: string
 ): void => {
-  writeFileSync(filepath, JSON.stringify(Object.fromEntries(map), null, 2))
+  const newBaselineFile: BaselineFile = {
+    meta: {
+      baselineFileVersion: CURRENT_BASELINE_VERSION
+    },
+    errors: Object.fromEntries(map)
+  }
+  writeFileSync(filepath, JSON.stringify(newBaselineFile, null, 2))
 }
 
-export const readTypeScriptErrorsFromFile = (
+export const readBaselineErrorsFile = (
   filepath: string
-): ErrorSummaryMap => {
+): BaselineFile | OldBaselineFile => {
   const text = readFileSync(filepath, {
     encoding: 'utf-8'
   })
-  const json = JSON.parse(text)
+  return JSON.parse(text)
+}
 
-  return new Map(Object.entries(json))
+export const getBaselineFileVersion = (
+  baselineFile: BaselineFile | OldBaselineFile
+) => {
+  if (
+    typeof baselineFile?.meta === 'object' &&
+    'baselineFileVersion' in baselineFile?.meta
+  ) {
+    return baselineFile?.meta?.baselineFileVersion
+  }
+  return 0
+}
+
+export const isBaselineVersionCurrent = (
+  baselineFile: BaselineFile | OldBaselineFile
+): baselineFile is BaselineFile => {
+  return getBaselineFileVersion(baselineFile) === CURRENT_BASELINE_VERSION
+}
+
+export const getErrorSummaryMap = (baselineFile: BaselineFile) => {
+  return new Map(Object.entries(baselineFile.errors))
 }
 
 export const getNewErrors = (
@@ -188,7 +230,14 @@ export const getSpecificErrorsMatchingSummary = (
 }
 
 export const addHashToBaseline = (hash: string, filepath: string): void => {
-  const oldErrors = readTypeScriptErrorsFromFile(filepath)
+  const baselineErrorsFile = readBaselineErrorsFile(filepath)
+  if (!isBaselineVersionCurrent(baselineErrorsFile)) {
+    throw new Error(
+      'The .tsc-baseline.json is not current. Please make sure your packages are up to date and save a new baseline file'
+    )
+  }
+
+  const oldErrors = getErrorSummaryMap(baselineErrorsFile)
   const newErrors = new Map<string, ErrorSummary>()
 
   for (const [key, error] of oldErrors) {

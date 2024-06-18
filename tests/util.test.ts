@@ -3,10 +3,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import fs from 'fs'
 import { resolve } from 'path'
 import {
+  BaselineFile,
   parseTypeScriptErrors,
   ErrorSummary,
   writeTypeScriptErrorsToFile,
-  readTypeScriptErrorsFromFile,
+  readBaselineErrorsFile,
+  getBaselineFileVersion,
+  getErrorSummaryMap,
   getNewErrors,
   getTotalErrorsCount,
   toHumanReadableText,
@@ -62,7 +65,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     expect(firstError.column).toBe(7)
 
     const errorTs1128 = Array.from(errorSummaryMap.values()).find(
-      (summary) => summary.code == 'TS1128'
+      (summary) => summary.code === 'TS1128'
     )
     if (!errorTs1128) {
       throw new Error('Could not find error TS1128 in the parsed result.')
@@ -87,6 +90,22 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     const fileContent = fs.readFileSync(filePath, 'utf-8')
     const parsedContent = JSON.parse(fileContent)
     expect(parsedContent).toEqual({
+      meta: {
+        baselineFileVersion: 1
+      },
+      errors: {
+        '8d4f5b0a6c282e236e4f437a50410d72': {
+          code: 'error1234',
+          message: 'An error message for TS1234',
+          file: 'example.ts',
+          count: 2
+        }
+      }
+    })
+  })
+
+  it('getBaselineFileVersion assigns a version of 0 to versions before meta field in file', () => {
+    const version = getBaselineFileVersion({
       '8d4f5b0a6c282e236e4f437a50410d72': {
         code: 'error1234',
         message: 'An error message for TS1234',
@@ -94,27 +113,33 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         count: 2
       }
     })
+    expect(version).toBe(0)
   })
 
-  it('readTypeScriptErrorsFromFile correctly reads errors from a file', () => {
+  it('correctly reads errors from a baseline file with associated utilities', () => {
     const filePath = resolve(tempDir, 'test-errors.json')
     fs.writeFileSync(
       filePath,
       JSON.stringify(
         {
-          '8d4f5b0a6c282e236e4f437a50410d72': {
-            code: 'error1234',
-            message: 'An error message for TS1234',
-            file: 'example.ts',
-            count: 2
+          meta: {
+            baselineFileVersion: 1
+          },
+          errors: {
+            '8d4f5b0a6c282e236e4f437a50410d72': {
+              code: 'error1234',
+              message: 'An error message for TS1234',
+              file: 'example.ts',
+              count: 2
+            }
           }
         },
         null,
         2
       )
     )
-
-    const errorMap = readTypeScriptErrorsFromFile(filePath)
+    const baselineFile = readBaselineErrorsFile(filePath)
+    const errorMap = getErrorSummaryMap(baselineFile as BaselineFile)
     expect(errorMap.size).toBe(1)
     const errorInfo = errorMap.get(
       '8d4f5b0a6c282e236e4f437a50410d72'
@@ -370,17 +395,22 @@ file2.ts(5,6)
     const fileContent = fs.readFileSync(filePath, 'utf-8')
     const parsedContent = JSON.parse(fileContent)
     expect(parsedContent).toEqual({
-      '8d4f5b0a6c282e236e4f437a50410d72': {
-        code: 'error1234',
-        message: 'An error message for TS1234',
-        file: 'example.ts',
-        count: 1
+      meta: {
+        baselineFileVersion: 1
       },
-      hash1234: {
-        code: '0000',
-        file: '0000',
-        message: '0000',
-        count: 1
+      errors: {
+        '8d4f5b0a6c282e236e4f437a50410d72': {
+          code: 'error1234',
+          message: 'An error message for TS1234',
+          file: 'example.ts',
+          count: 1
+        },
+        hash1234: {
+          code: '0000',
+          file: '0000',
+          message: '0000',
+          count: 1
+        }
       }
     })
   })
