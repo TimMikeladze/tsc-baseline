@@ -1,11 +1,13 @@
 import { readFileSync, writeFileSync } from 'fs'
 import objectHash from 'object-hash'
 
+export const CURRENT_BASELINE_VERSION = 1
+
 export interface ErrorSummary {
   code: string
   count: number
   file: string
-  message: string
+  message?: string
 }
 
 export interface SpecificError {
@@ -16,6 +18,21 @@ export interface SpecificError {
   message: string
 }
 
+export interface OldBaselineFile {
+  [hash: string]: ErrorSummary | SpecificError
+}
+
+export interface BaselineFile {
+  meta: {
+    baselineFileVersion: number
+    ignoreMessages: boolean
+  }
+  // eslint-disable-next-line typescript-sort-keys/interface
+  errors: {
+    [hash: string]: ErrorSummary
+  }
+}
+
 export type SpecificErrorsMap = Map<string, SpecificError[]>
 export type ErrorSummaryMap = Map<string, ErrorSummary>
 
@@ -24,14 +41,27 @@ export interface ParsingResult {
   specificErrorsMap: SpecificErrorsMap
 }
 
-// Hash just the error summary, not the count so that we can easily
-// modify the count independently
-const getErrorSummaryHash = (errorSummary: ErrorSummary) => {
-  const { count, ...rest } = errorSummary
-  return objectHash(rest)
+type ErrorOptions = {
+  ignoreMessages: boolean
 }
 
-export const parseTypeScriptErrors = (errorLog: string): ParsingResult => {
+// Hash just the error summary, not the count so that we can easily
+// modify the count independently
+const getErrorSummaryHash = (
+  errorSummary: ErrorSummary,
+  { ignoreMessages }: ErrorOptions
+) => {
+  const { code, file, message } = errorSummary
+  if (ignoreMessages) {
+    return objectHash({ code, file })
+  }
+  return objectHash({ code, file, message })
+}
+
+export const parseTypeScriptErrors = (
+  errorLog: string,
+  { ignoreMessages }: ErrorOptions
+): ParsingResult => {
   const errorPattern = /^(.+)\((\d+),(\d+)\): error (\w+): (.+)$/
 
   const lines = errorLog.split('\n')
@@ -58,10 +88,12 @@ export const parseTypeScriptErrors = (errorLog: string): ParsingResult => {
     let errorSummary: ErrorSummary = {
       file,
       code,
-      message,
       count: 1
     }
-    const key = getErrorSummaryHash(errorSummary)
+    if (!ignoreMessages) {
+      errorSummary.message = message
+    }
+    const key = getErrorSummaryHash(errorSummary, { ignoreMessages })
 
     const existingError = errorSummaryMap.get(key)
     if (existingError) {
@@ -92,20 +124,48 @@ export const parseTypeScriptErrors = (errorLog: string): ParsingResult => {
 
 export const writeTypeScriptErrorsToFile = (
   map: ErrorSummaryMap,
-  filepath: string
+  filepath: string,
+  errorOptions: ErrorOptions
 ): void => {
-  writeFileSync(filepath, JSON.stringify(Object.fromEntries(map), null, 2))
+  const newBaselineFile: BaselineFile = {
+    meta: {
+      baselineFileVersion: CURRENT_BASELINE_VERSION,
+      ignoreMessages: errorOptions.ignoreMessages
+    },
+    errors: Object.fromEntries(map)
+  }
+  writeFileSync(filepath, JSON.stringify(newBaselineFile, null, 2))
 }
 
-export const readTypeScriptErrorsFromFile = (
+export const readBaselineErrorsFile = (
   filepath: string
-): ErrorSummaryMap => {
+): BaselineFile | OldBaselineFile => {
   const text = readFileSync(filepath, {
     encoding: 'utf-8'
   })
-  const json = JSON.parse(text)
+  return JSON.parse(text)
+}
 
-  return new Map(Object.entries(json))
+export const getBaselineFileVersion = (
+  baselineFile: BaselineFile | OldBaselineFile
+) => {
+  if (
+    typeof baselineFile?.meta === 'object' &&
+    'baselineFileVersion' in baselineFile?.meta
+  ) {
+    return baselineFile?.meta?.baselineFileVersion
+  }
+  return 0
+}
+
+export const isBaselineVersionCurrent = (
+  baselineFile: BaselineFile | OldBaselineFile
+): baselineFile is BaselineFile => {
+  return getBaselineFileVersion(baselineFile) === CURRENT_BASELINE_VERSION
+}
+
+export const getErrorSummaryMap = (baselineFile: BaselineFile) => {
+  return new Map(Object.entries(baselineFile.errors))
 }
 
 export const getNewErrors = (
@@ -139,18 +199,22 @@ export const getTotalErrorsCount = (errorMap: ErrorSummaryMap): number =>
 
 export const toHumanReadableText = (
   errorSummaryMap: ErrorSummaryMap,
-  specificErrorMap: SpecificErrorsMap
+  specificErrorMap: SpecificErrorsMap,
+  errorOptions: ErrorOptions
 ): string => {
   let log = ''
 
   for (const [key, error] of errorSummaryMap) {
     const specificErrors = getSpecificErrorsMatchingSummary(
       error,
-      specificErrorMap
+      specificErrorMap,
+      errorOptions
     )
 
     log += `File: ${error.file}\n`
-    log += `Message: ${error.message}\n`
+    if (error.message) {
+      log += `Message: ${error.message}\n`
+    }
     log += `Code: ${error.code}\n`
     log += `Hash: ${key}\n`
     log += `Count of new errors: ${error.count}\n`
@@ -173,7 +237,8 @@ export const toHumanReadableText = (
 
 export const getSpecificErrorsMatchingSummary = (
   errorSummary: ErrorSummary,
-  specificErrorsMap: SpecificErrorsMap
+  specificErrorsMap: SpecificErrorsMap,
+  errorOptions: ErrorOptions
 ): SpecificError[] => {
   return (
     specificErrorsMap
@@ -181,14 +246,23 @@ export const getSpecificErrorsMatchingSummary = (
       ?.filter(
         (specificError) =>
           specificError.file === errorSummary.file &&
-          specificError.message === errorSummary.message &&
+          (errorOptions.ignoreMessages
+            ? true
+            : specificError.message === errorSummary.message) &&
           specificError.code === errorSummary.code
       ) || []
   )
 }
 
 export const addHashToBaseline = (hash: string, filepath: string): void => {
-  const oldErrors = readTypeScriptErrorsFromFile(filepath)
+  const baselineErrorsFile = readBaselineErrorsFile(filepath)
+  if (!isBaselineVersionCurrent(baselineErrorsFile)) {
+    throw new Error(
+      'The .tsc-baseline.json is not current. Please make sure your packages are up to date and save a new baseline file'
+    )
+  }
+
+  const oldErrors = getErrorSummaryMap(baselineErrorsFile)
   const newErrors = new Map<string, ErrorSummary>()
 
   for (const [key, error] of oldErrors) {
@@ -202,5 +276,7 @@ export const addHashToBaseline = (hash: string, filepath: string): void => {
     count: 1
   })
 
-  writeTypeScriptErrorsToFile(newErrors, filepath)
+  writeTypeScriptErrorsToFile(newErrors, filepath, {
+    ignoreMessages: baselineErrorsFile.meta.ignoreMessages
+  })
 }

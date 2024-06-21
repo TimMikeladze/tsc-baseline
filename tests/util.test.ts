@@ -3,10 +3,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import fs from 'fs'
 import { resolve } from 'path'
 import {
+  BaselineFile,
   parseTypeScriptErrors,
   ErrorSummary,
   writeTypeScriptErrorsToFile,
-  readTypeScriptErrorsFromFile,
+  readBaselineErrorsFile,
+  getBaselineFileVersion,
+  getErrorSummaryMap,
   getNewErrors,
   getTotalErrorsCount,
   toHumanReadableText,
@@ -40,8 +43,10 @@ src/util.ts(81,1): error TS1128: Declaration or statement expected.
 src/somethingElse.ts(2,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const { specificErrorsMap, errorSummaryMap } =
-      parseTypeScriptErrors(errorLog)
+    const { specificErrorsMap, errorSummaryMap } = parseTypeScriptErrors(
+      errorLog,
+      { ignoreMessages: false }
+    )
 
     expect(specificErrorsMap.size).toBe(2)
     const utilFileErrors = specificErrorsMap.get('src/util.ts')
@@ -62,7 +67,7 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     expect(firstError.column).toBe(7)
 
     const errorTs1128 = Array.from(errorSummaryMap.values()).find(
-      (summary) => summary.code == 'TS1128'
+      (summary) => summary.code === 'TS1128'
     )
     if (!errorTs1128) {
       throw new Error('Could not find error TS1128 in the parsed result.')
@@ -82,11 +87,28 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     })
 
     const filePath = resolve(tempDir, 'test-errors.json')
-    writeTypeScriptErrorsToFile(errorMap, filePath)
+    writeTypeScriptErrorsToFile(errorMap, filePath, { ignoreMessages: false })
 
     const fileContent = fs.readFileSync(filePath, 'utf-8')
     const parsedContent = JSON.parse(fileContent)
     expect(parsedContent).toEqual({
+      meta: {
+        baselineFileVersion: 1,
+        ignoreMessages: false
+      },
+      errors: {
+        '8d4f5b0a6c282e236e4f437a50410d72': {
+          code: 'error1234',
+          message: 'An error message for TS1234',
+          file: 'example.ts',
+          count: 2
+        }
+      }
+    })
+  })
+
+  it('getBaselineFileVersion assigns a version of 0 to versions before meta field in file', () => {
+    const version = getBaselineFileVersion({
       '8d4f5b0a6c282e236e4f437a50410d72': {
         code: 'error1234',
         message: 'An error message for TS1234',
@@ -94,27 +116,34 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
         count: 2
       }
     })
+    expect(version).toBe(0)
   })
 
-  it('readTypeScriptErrorsFromFile correctly reads errors from a file', () => {
+  it('correctly reads errors from a baseline file with associated utilities', () => {
     const filePath = resolve(tempDir, 'test-errors.json')
     fs.writeFileSync(
       filePath,
       JSON.stringify(
         {
-          '8d4f5b0a6c282e236e4f437a50410d72': {
-            code: 'error1234',
-            message: 'An error message for TS1234',
-            file: 'example.ts',
-            count: 2
+          meta: {
+            baselineFileVersion: 1,
+            ignoreMessages: false
+          },
+          errors: {
+            '8d4f5b0a6c282e236e4f437a50410d72': {
+              code: 'error1234',
+              message: 'An error message for TS1234',
+              file: 'example.ts',
+              count: 2
+            }
           }
         },
         null,
         2
       )
     )
-
-    const errorMap = readTypeScriptErrorsFromFile(filePath)
+    const baselineFile = readBaselineErrorsFile(filePath)
+    const errorMap = getErrorSummaryMap(baselineFile as BaselineFile)
     expect(errorMap.size).toBe(1)
     const errorInfo = errorMap.get(
       '8d4f5b0a6c282e236e4f437a50410d72'
@@ -349,7 +378,9 @@ Count of new errors: 1
 file2.ts(5,6)
     `.trim() // Remove leading newline
 
-    const result = toHumanReadableText(errorSummaryMap, specificErrorsMap)
+    const result = toHumanReadableText(errorSummaryMap, specificErrorsMap, {
+      ignoreMessages: false
+    })
     expect(result).toBe(expectedOutput)
   })
 
@@ -363,24 +394,30 @@ file2.ts(5,6)
     })
 
     const filePath = resolve(tempDir, 'test-errors.json')
-    writeTypeScriptErrorsToFile(errorMap, filePath)
+    writeTypeScriptErrorsToFile(errorMap, filePath, { ignoreMessages: false })
 
     addHashToBaseline('hash1234', filePath)
 
     const fileContent = fs.readFileSync(filePath, 'utf-8')
     const parsedContent = JSON.parse(fileContent)
     expect(parsedContent).toEqual({
-      '8d4f5b0a6c282e236e4f437a50410d72': {
-        code: 'error1234',
-        message: 'An error message for TS1234',
-        file: 'example.ts',
-        count: 1
+      meta: {
+        baselineFileVersion: 1,
+        ignoreMessages: false
       },
-      hash1234: {
-        code: '0000',
-        file: '0000',
-        message: '0000',
-        count: 1
+      errors: {
+        '8d4f5b0a6c282e236e4f437a50410d72': {
+          code: 'error1234',
+          message: 'An error message for TS1234',
+          file: 'example.ts',
+          count: 1
+        },
+        hash1234: {
+          code: '0000',
+          file: '0000',
+          message: '0000',
+          count: 1
+        }
       }
     })
   })
@@ -397,7 +434,10 @@ src/util.ts(43,1): error TS1128: Declaration or statement expected.
 src/util.ts(81,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const originalErrorsParsingResult = parseTypeScriptErrors(originalErrorLog)
+    const originalErrorsParsingResult = parseTypeScriptErrors(
+      originalErrorLog,
+      { ignoreMessages: false }
+    )
 
     const newErrorLog = `warning package.json: License should be a valid SPDX license expression
 error Command failed with exit code 2.
@@ -410,7 +450,9 @@ src/util.ts(43,1): error TS1128: Declaration or statement expected.
 src/util.ts(181,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const newErrorsParsingResult = parseTypeScriptErrors(newErrorLog)
+    const newErrorsParsingResult = parseTypeScriptErrors(newErrorLog, {
+      ignoreMessages: false
+    })
 
     const newErrors = getNewErrors(
       originalErrorsParsingResult.errorSummaryMap,
@@ -429,7 +471,10 @@ src/util.ts(35,12): error TS1389: 'if' is not allowed as a variable declaration 
 src/util.ts(40,3): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const originalErrorsParsingResult = parseTypeScriptErrors(originalErrorLog)
+    const originalErrorsParsingResult = parseTypeScriptErrors(
+      originalErrorLog,
+      { ignoreMessages: false }
+    )
 
     const newErrorLog = `warning package.json: License should be a valid SPDX license expression
 error Command failed with exit code 2.
@@ -442,7 +487,9 @@ src/util.ts(43,1): error TS1128: Declaration or statement expected.
 src/util.ts(181,1): error TS1128: Declaration or statement expected.
 info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
 
-    const newErrorsParsingResult = parseTypeScriptErrors(newErrorLog)
+    const newErrorsParsingResult = parseTypeScriptErrors(newErrorLog, {
+      ignoreMessages: false
+    })
 
     const newErrors = getNewErrors(
       originalErrorsParsingResult.errorSummaryMap,

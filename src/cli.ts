@@ -5,10 +5,14 @@ import {
   addHashToBaseline,
   getNewErrors,
   parseTypeScriptErrors,
-  readTypeScriptErrorsFromFile,
   getTotalErrorsCount,
   toHumanReadableText,
-  writeTypeScriptErrorsToFile
+  writeTypeScriptErrorsToFile,
+  readBaselineErrorsFile,
+  isBaselineVersionCurrent,
+  getErrorSummaryMap,
+  getBaselineFileVersion,
+  CURRENT_BASELINE_VERSION
 } from './util'
 import { resolve } from 'path'
 import { rmSync } from 'fs'
@@ -28,10 +32,16 @@ import { rmSync } from 'fs'
     `Path to file to save baseline errors to. Defaults to .tsc-baseline.json`
   )
 
+  program.option(
+    '--ignoreMessages',
+    'Ignores specific type error messages and only counts errors by code.'
+  )
+
   const getConfig = () => {
     const config = program.opts()
     return {
-      path: resolve(process.cwd(), config.path || '.tsc-baseline.json')
+      path: resolve(process.cwd(), config.path || '.tsc-baseline.json'),
+      ignoreMessages: config.ignoreMessages || false
     }
   }
 
@@ -40,9 +50,13 @@ import { rmSync } from 'fs'
       message = stdin
       if (message) {
         const config = getConfig()
+        const errorOptions = {
+          ignoreMessages: config.ignoreMessages
+        }
         writeTypeScriptErrorsToFile(
-          parseTypeScriptErrors(message).errorSummaryMap,
-          config.path
+          parseTypeScriptErrors(message, errorOptions).errorSummaryMap,
+          config.path,
+          errorOptions
         )
         console.log("\nSaved baseline errors to '" + config.path + "'")
       }
@@ -63,9 +77,52 @@ import { rmSync } from 'fs'
       message = stdin
       if (message) {
         const config = getConfig()
-        const oldErrorSummaries = readTypeScriptErrorsFromFile(config.path)
-        const { specificErrorsMap, errorSummaryMap } =
-          parseTypeScriptErrors(message)
+        let baselineFile
+        try {
+          baselineFile = readBaselineErrorsFile(config.path)
+        } catch (err) {
+          console.error(
+            `
+Unable to read the .tsc-baseline.json file at "${config.path}".
+
+Has the baseline file been properly saved with the 'save' command?
+`
+          )
+          process.exit(1)
+        }
+        if (!isBaselineVersionCurrent(baselineFile)) {
+          const baselineFileVersion = getBaselineFileVersion(baselineFile)
+          if (baselineFileVersion < CURRENT_BASELINE_VERSION) {
+            console.error(
+              `
+The .tsc-baseline.json file at "${config.path}"
+is out of date for this version of tsc-baseline.
+
+Please update the baseline file using the 'save' command.
+`
+            )
+            process.exit(1)
+          } else {
+            console.error(
+              `
+The .tsc-baseline.json file at "${config.path}"
+is from a future version of tsc-baseline.
+
+Are your installed packages up to date?
+`
+            )
+            process.exit(1)
+          }
+        }
+
+        const oldErrorSummaries = getErrorSummaryMap(baselineFile)
+        const errorOptions = {
+          ignoreMessages: baselineFile.meta.ignoreMessages
+        }
+        const { specificErrorsMap, errorSummaryMap } = parseTypeScriptErrors(
+          message,
+          errorOptions
+        )
         const newErrorSummaries = getNewErrors(
           oldErrorSummaries,
           errorSummaryMap
@@ -78,7 +135,7 @@ import { rmSync } from 'fs'
         } found`
 
         console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
-${toHumanReadableText(newErrorSummaries, specificErrorsMap)}
+${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
 
 ${newErrorsCountMessage}. ${oldErrorsCount} error${
           oldErrorsCount === 1 ? '' : 's'

@@ -126,6 +126,8 @@ describe('End-to-end tests', () => {
       Options:
         -p --path <path>  Path to file to save baseline errors to. Defaults to
                           .tsc-baseline.json
+        --ignoreMessages  Ignores specific type error messages and only counts errors
+                          by code.
         -h, --help        display help for command
 
       Commands:
@@ -139,7 +141,7 @@ describe('End-to-end tests', () => {
   })
 
   describe('save', () => {
-    it('writes an empty object file when there are no errors', async () => {
+    it('writes a file with no recorded errors when there are no TypeScript errors', async () => {
       const output = await cli('save', ' ')
 
       expect(output.error).toBeNull()
@@ -148,7 +150,16 @@ describe('End-to-end tests', () => {
         new RegExp(`Saved baseline errors to '${getBaselinePath()}'`)
       )
       expect(fs.existsSync(getBaselinePath())).toBe(true)
-      expect(fs.readFileSync(getBaselinePath(), 'utf-8')).toBe('{}')
+      expect(fs.readFileSync(getBaselinePath(), 'utf-8'))
+        .toMatchInlineSnapshot(`
+          "{
+            \\"meta\\": {
+              \\"baselineFileVersion\\": 1,
+              \\"ignoreMessages\\": false
+            },
+            \\"errors\\": {}
+          }"
+        `)
     })
 
     it('saves errors on separate lines so that it works well with version control', async () => {
@@ -156,14 +167,42 @@ describe('End-to-end tests', () => {
       expect(saveOutput.code).toBe(0)
       expect(fs.existsSync(getBaselinePath())).toBe(true)
       const baselineFileContent = fs.readFileSync(getBaselinePath(), 'utf-8')
-      expect(baselineFileContent.split('\n').length).toBeGreaterThan(1)
+      expect(baselineFileContent.split('\n').length).toBeGreaterThan(6)
       expect(baselineFileContent).toMatchInlineSnapshot(`
         "{
-          \\"74fbc5bc3645b575167c6eca966b224014ff7e42\\": {
-            \\"file\\": \\"src/util.ts\\",
-            \\"code\\": \\"TS2322\\",
-            \\"message\\": \\"Type 'number' is not assignable to type 'string'.\\",
-            \\"count\\": 1
+          \\"meta\\": {
+            \\"baselineFileVersion\\": 1,
+            \\"ignoreMessages\\": false
+          },
+          \\"errors\\": {
+            \\"74fbc5bc3645b575167c6eca966b224014ff7e42\\": {
+              \\"file\\": \\"src/util.ts\\",
+              \\"code\\": \\"TS2322\\",
+              \\"count\\": 1,
+              \\"message\\": \\"Type 'number' is not assignable to type 'string'.\\"
+            }
+          }
+        }"
+      `)
+    })
+
+    it('properly handles a flag to ignore error messages', async () => {
+      const saveOutput = await cli('save --ignoreMessages', basicTsErrorOutput)
+      expect(saveOutput.code).toBe(0)
+      expect(fs.existsSync(getBaselinePath())).toBe(true)
+      const baselineFileContent = fs.readFileSync(getBaselinePath(), 'utf-8')
+      expect(baselineFileContent).toMatchInlineSnapshot(`
+        "{
+          \\"meta\\": {
+            \\"baselineFileVersion\\": 1,
+            \\"ignoreMessages\\": true
+          },
+          \\"errors\\": {
+            \\"4ea57c4c703d8b1df2807230c82ed3a0610c013f\\": {
+              \\"file\\": \\"src/util.ts\\",
+              \\"code\\": \\"TS2322\\",
+              \\"count\\": 1
+            }
           }
         }"
       `)
@@ -237,6 +276,113 @@ describe('End-to-end tests', () => {
         1 new error found. 1 error already in baseline.
         "
       `)
+    })
+
+    describe('baseline file validation', () => {
+      it('gives a helpful error if no baseline file is found', async () => {
+        const checkOutput = await cli('check', ' ')
+
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatch(
+          new RegExp(
+            `Unable to read the .tsc-baseline.json file at "${getBaselinePath()}".`
+          )
+        )
+        expect(checkOutput.stderr).toMatch(
+          /Has the baseline file been properly saved with the 'save' command\?/
+        )
+      })
+
+      it('fails if using an earlier version of the baseline errors file that does not have metadata', async () => {
+        fs.writeFileSync(getBaselinePath(), '{}')
+
+        const checkOutput = await cli('check', ' ')
+
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatch(
+          new RegExp(
+            `The .tsc-baseline.json file at "${getBaselinePath()}"\nis out of date for this version of tsc-baseline.`
+          )
+        )
+        expect(checkOutput.stderr).toMatch(
+          /Please update the baseline file using the 'save' command./
+        )
+      })
+
+      it('warns about being the wrong package version if the baseline file version is a future version', async () => {
+        fs.writeFileSync(
+          getBaselinePath(),
+          JSON.stringify(
+            {
+              meta: { baselineFileVersion: 10000, ignoreMessages: false },
+              errors: {}
+            },
+            null,
+            2
+          )
+        )
+        const checkOutput = await cli('check', ' ')
+
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatch(
+          new RegExp(
+            `The .tsc-baseline.json file at "${getBaselinePath()}"\nis from a future version of tsc-baseline.`
+          )
+        )
+        expect(checkOutput.stderr).toMatch(
+          /Are your installed packages up to date\?/
+        )
+      })
+    })
+
+    describe('--ignoreMessages flag', () => {
+      it('does not show errors if all the errors already exist', async () => {
+        await cli('save --ignoreMessages', basicTsErrorOutput)
+        const checkOutput = await cli('check', basicTsErrorOutput)
+        // expect(checkOutput.code).toBe(0)
+        expect(checkOutput.stderr).toMatchInlineSnapshot(`
+          "
+
+
+          0 new errors found. 1 error already in baseline.
+          "
+        `)
+      })
+
+      it('only shows all potentially new errors', async () => {
+        const originalErrors = removeIndent`
+          > tsc-baseline@1.4.0 type-check
+          > tsc
+  
+          src/util.ts(13,17): error TS2322: Type 'number' is not assignable to type 'string'.
+        `
+        await cli('save --ignoreMessages', originalErrors)
+
+        const newErrors = removeIndent`
+          > tsc-baseline@1.4.0 type-check
+          > tsc
+  
+          src/util.ts(133,7): error TS2322: Type 'number' is not assignable to type 'string'.
+          src/util.ts(135,7): error TS2322: Type '{ invalid: number; }' is not assignable to type 'number'.
+        `
+        const checkOutput = await cli('check', newErrors)
+
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatchInlineSnapshot(`
+          "
+          New errors found:
+          File: src/util.ts
+          Code: TS2322
+          Hash: 4ea57c4c703d8b1df2807230c82ed3a0610c013f
+          Count of new errors: 1
+          2 current errors:
+          src/util.ts(133,7)
+          src/util.ts(135,7)
+
+          1 new error found. 1 error already in baseline.
+          "
+        `)
+      })
     })
   })
 })
