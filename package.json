@@ -92,7 +92,7 @@
     "yalc": "1.0.0-pre.53"
   },
   "dependencies": {
-    "commander": "11.0.0",
+    "commander": "12.1.0",
     "object-hash": "3.0.0"
   },
   "resolutions": {
