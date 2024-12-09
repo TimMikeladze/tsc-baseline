@@ -14,7 +14,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git@github.com:TimMikeladze/tsc-baseline.git"
+    "url": "https://git.leadity.de/erik.ohlmeyer/tsc-baseline"
   },
   "license": "MIT",
   "files": [

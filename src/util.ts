@@ -7,6 +7,7 @@ export interface ErrorSummary {
   code: string
   count: number
   file: string
+  line: number
   message?: string
 }
 
@@ -84,10 +85,11 @@ export const parseTypeScriptErrors = (
   }
 
   const addErrorToSummary = (error: SpecificError) => {
-    const { file, code, message } = error
+    const { file, code, message, line } = error
     let errorSummary: ErrorSummary = {
       file,
       code,
+      line,
       count: 1
     }
     if (!ignoreMessages) {
@@ -217,6 +219,7 @@ export const toHumanReadableText = (
     }
     log += `Code: ${error.code}\n`
     log += `Hash: ${key}\n`
+    log += `Line: ${error.line}\n`
     log += `Count of new errors: ${error.count}\n`
     log += `${specificErrors.length} current error${
       specificErrors.length === 1 ? '' : 's'
@@ -273,6 +276,7 @@ export const addHashToBaseline = (hash: string, filepath: string): void => {
     code: '0000',
     file: '0000',
     message: '0000',
+    line: 0,
     count: 1
   })
 
