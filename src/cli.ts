@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander'
+import { Command, Option } from 'commander'
 import {
   addHashToBaseline,
   getNewErrors,
@@ -17,6 +17,10 @@ import {
 } from './util'
 import { resolve } from 'path'
 import { rmSync } from 'fs'
+enum ErrorFormat {
+  GITLAB = 'gitlab',
+  HUMAN = 'human'
+}
 ;(async () => {
   const program = new Command()
 
@@ -38,17 +42,11 @@ import { rmSync } from 'fs'
     'Ignores specific type error messages and only counts errors by code.'
   )
 
-  program.option(
-    '--gitlab',
-    'Output errors in GitLab Code Quality Report format'
-  )
-
   const getConfig = () => {
     const config = program.opts()
     return {
       path: resolve(process.cwd(), config.path || '.tsc-baseline.json'),
-      ignoreMessages: config.ignoreMessages || false,
-      gitlab: config.gitlab || false
+      ignoreMessages: config.ignoreMessages || false
     }
   }
 
@@ -79,86 +77,98 @@ import { rmSync } from 'fs'
     }
   })
 
-  program.command('check [message]').action((message) => {
-    if (stdin) {
-      message = stdin
-      if (message) {
-        const config = getConfig()
-        let baselineFile
-        try {
-          baselineFile = readBaselineErrorsFile(config.path)
-        } catch (err) {
-          console.error(
-            `
-Unable to read the .tsc-baseline.json file at "${config.path}".
-
-Has the baseline file been properly saved with the 'save' command?
-`
-          )
-          process.exit(1)
-        }
-        if (!isBaselineVersionCurrent(baselineFile)) {
-          const baselineFileVersion = getBaselineFileVersion(baselineFile)
-          if (baselineFileVersion < CURRENT_BASELINE_VERSION) {
+  program
+    .command('check [message]')
+    .addOption(
+      new Option('--error-format [error-format]', 'Format to output errors')
+        .default(ErrorFormat.HUMAN)
+        .choices(Object.values(ErrorFormat))
+    )
+    .action((message) => {
+      if (stdin) {
+        message = stdin
+        if (message) {
+          const config = getConfig()
+          let baselineFile
+          try {
+            baselineFile = readBaselineErrorsFile(config.path)
+          } catch (err) {
             console.error(
               `
-The .tsc-baseline.json file at "${config.path}"
-is out of date for this version of tsc-baseline.
-
-Please update the baseline file using the 'save' command.
-`
-            )
-            process.exit(1)
-          } else {
-            console.error(
-              `
-The .tsc-baseline.json file at "${config.path}"
-is from a future version of tsc-baseline.
-
-Are your installed packages up to date?
-`
+  Unable to read the .tsc-baseline.json file at "${config.path}".
+  
+  Has the baseline file been properly saved with the 'save' command?
+  `
             )
             process.exit(1)
           }
-        }
+          if (!isBaselineVersionCurrent(baselineFile)) {
+            const baselineFileVersion = getBaselineFileVersion(baselineFile)
+            if (baselineFileVersion < CURRENT_BASELINE_VERSION) {
+              console.error(
+                `
+  The .tsc-baseline.json file at "${config.path}"
+  is out of date for this version of tsc-baseline.
+  
+  Please update the baseline file using the 'save' command.
+  `
+              )
+              process.exit(1)
+            } else {
+              console.error(
+                `
+  The .tsc-baseline.json file at "${config.path}"
+  is from a future version of tsc-baseline.
+  
+  Are your installed packages up to date?
+  `
+              )
+              process.exit(1)
+            }
+          }
 
-        const oldErrorSummaries = getErrorSummaryMap(baselineFile)
-        const errorOptions = {
-          ignoreMessages: baselineFile.meta.ignoreMessages
-        }
-        const { specificErrorsMap, errorSummaryMap } = parseTypeScriptErrors(
-          message,
-          errorOptions
-        )
-        const newErrorSummaries = getNewErrors(
-          oldErrorSummaries,
-          errorSummaryMap
-        )
-        const newErrorsCount = getTotalErrorsCount(newErrorSummaries)
-        const oldErrorsCount = getTotalErrorsCount(oldErrorSummaries)
+          const oldErrorSummaries = getErrorSummaryMap(baselineFile)
+          const errorOptions = {
+            ignoreMessages: baselineFile.meta.ignoreMessages
+          }
+          const { specificErrorsMap, errorSummaryMap } = parseTypeScriptErrors(
+            message,
+            errorOptions
+          )
+          const newErrorSummaries = getNewErrors(
+            oldErrorSummaries,
+            errorSummaryMap
+          )
+          const newErrorsCount = getTotalErrorsCount(newErrorSummaries)
+          const oldErrorsCount = getTotalErrorsCount(oldErrorSummaries)
 
-        const newErrorsCountMessage = `${newErrorsCount} new error${
-          newErrorsCount === 1 ? '' : 's'
-        } found`
+          const newErrorsCountMessage = `${newErrorsCount} new error${
+            newErrorsCount === 1 ? '' : 's'
+          } found`
 
-        if (config.gitlab) {
-          const gitLabFormattedErrors = formatForGitLab(newErrorSummaries)
-          console.log(JSON.stringify(gitLabFormattedErrors, null, 2))
-        } else {
-          console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
-${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
+          const options = program.opts()
+          if (options.errorFormat === ErrorFormat.GITLAB) {
+            const gitLabFormattedErrors = formatForGitLab(newErrorSummaries)
 
-${newErrorsCountMessage}. ${oldErrorsCount} error${
-            oldErrorsCount === 1 ? '' : 's'
-          } already in baseline.`)
-        }
-        if (newErrorsCount > 0) {
-          // Exit with a failure code so new errors fail CI by default
-          process.exit(1)
+            console.error(JSON.stringify(gitLabFormattedErrors, null, 2))
+          } else if (options.errorFormat === ErrorFormat.HUMAN) {
+            console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
+  ${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
+  
+  ${newErrorsCountMessage}. ${oldErrorsCount} error${
+    oldErrorsCount === 1 ? '' : 's'
+  } already in baseline.`)
+          } else {
+            console.error(`Invalid error format: ${options.errorFormat}`)
+            process.exit(1)
+          }
+          if (newErrorsCount > 0) {
+            // Exit with a failure code so new errors fail CI by default
+            process.exit(1)
+          }
         }
       }
-    }
-  })
+    })
 
   program.command('clear').action(() => {
     const config = getConfig()

@@ -133,7 +133,7 @@ describe('End-to-end tests', () => {
       Commands:
         save [message]
         add [hash]
-        check [message]
+        check [options] [message]
         clear
         help [command]    display help for command
       "
