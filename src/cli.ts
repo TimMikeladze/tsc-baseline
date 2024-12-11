@@ -12,6 +12,7 @@ import {
   isBaselineVersionCurrent,
   getErrorSummaryMap,
   getBaselineFileVersion,
+  formatForGitLab,
   CURRENT_BASELINE_VERSION
 } from './util'
 import { resolve } from 'path'
@@ -37,11 +38,17 @@ import { rmSync } from 'fs'
     'Ignores specific type error messages and only counts errors by code.'
   )
 
+  program.option(
+    '--gitlab',
+    'Output errors in GitLab Code Quality Report format'
+  )
+
   const getConfig = () => {
     const config = program.opts()
     return {
       path: resolve(process.cwd(), config.path || '.tsc-baseline.json'),
-      ignoreMessages: config.ignoreMessages || false
+      ignoreMessages: config.ignoreMessages || false,
+      gitlab: config.gitlab || false
     }
   }
 
@@ -134,13 +141,17 @@ Are your installed packages up to date?
           newErrorsCount === 1 ? '' : 's'
         } found`
 
-        console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
+        if (config.gitlab) {
+          const gitLabFormattedErrors = formatForGitLab(newErrorSummaries)
+          console.log(JSON.stringify(gitLabFormattedErrors, null, 2))
+        } else {
+          console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
 ${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
 
 ${newErrorsCountMessage}. ${oldErrorsCount} error${
-          oldErrorsCount === 1 ? '' : 's'
-        } already in baseline.`)
-
+            oldErrorsCount === 1 ? '' : 's'
+          } already in baseline.`)
+        }
         if (newErrorsCount > 0) {
           // Exit with a failure code so new errors fail CI by default
           process.exit(1)

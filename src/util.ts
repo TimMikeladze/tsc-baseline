@@ -36,6 +36,18 @@ export interface BaselineFile {
 
 export type SpecificErrorsMap = Map<string, SpecificError[]>
 export type ErrorSummaryMap = Map<string, ErrorSummary>
+export type GitLabErrorFormat = {
+  check_name: string
+  description: string
+  fingerprint: string
+  location: {
+    lines: {
+      begin: number
+    }
+    path: string
+  }
+  severity: string
+}
 
 export interface ParsingResult {
   errorSummaryMap: ErrorSummaryMap
@@ -283,4 +295,22 @@ export const addHashToBaseline = (hash: string, filepath: string): void => {
   writeTypeScriptErrorsToFile(newErrors, filepath, {
     ignoreMessages: baselineErrorsFile.meta.ignoreMessages
   })
+}
+
+export const formatForGitLab = (
+  errors: ErrorSummaryMap
+): GitLabErrorFormat[] => {
+  console.log(errors)
+  return Array.from(errors.values()).map((error: any) => ({
+    description: error.message || 'Unknown error message',
+    check_name: 'typescript-errors',
+    fingerprint: error.hash || 'unknown-fingerprint',
+    severity: error.severity || 'minor',
+    location: {
+      path: error.file || 'unknown-file',
+      lines: {
+        begin: error.line || 0
+      }
+    }
+  }))
 }
