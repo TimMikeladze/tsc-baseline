@@ -53,6 +53,11 @@ export interface ParsingResult {
   specificErrorsMap: SpecificErrorsMap
 }
 
+export enum ErrorFormat {
+  GITLAB = 'gitlab',
+  HUMAN = 'human'
+}
+
 type ErrorOptions = {
   ignoreMessages: boolean
 }
@@ -293,19 +298,35 @@ export const addHashToBaseline = (hash: string, filepath: string): void => {
   })
 }
 
-export const formatForGitLab = (
-  errors: ErrorSummaryMap
+export const toGitLabOutputFormat = (
+  errorSummaryMap: ErrorSummaryMap,
+  specificErrorMap: SpecificErrorsMap,
+  errorOptions: ErrorOptions
 ): GitLabErrorFormat[] => {
-  return Array.from(errors.values()).map((error: any) => ({
-    description: error.message || 'Unknown error message',
-    check_name: 'typescript-errors',
-    fingerprint: error.hash || 'unknown-fingerprint',
-    severity: error.severity || 'minor',
-    location: {
-      path: error.file || 'unknown-file',
-      lines: {
-        begin: error.line || 0
+  const result: GitLabErrorFormat[] = []
+
+  for (const [key, error] of errorSummaryMap.entries()) {
+    const specificErrors = getSpecificErrorsMatchingSummary(
+      error,
+      specificErrorMap,
+      errorOptions
+    )
+
+    const specificError = specificErrors[0] || {};
+
+    result.push({
+      description: error.message || 'Unknown error message',
+      check_name: 'typescript-errors',
+      fingerprint: key || 'unknown-fingerprint',
+      severity: 'minor',
+      location: {
+        path: specificError.file || 'unknown-file',
+        lines: {
+          begin: specificError.line || 0
+        }
       }
-    }
-  }))
+    })
+  }
+
+  return result
 }

@@ -12,15 +12,12 @@ import {
   isBaselineVersionCurrent,
   getErrorSummaryMap,
   getBaselineFileVersion,
-  formatForGitLab,
-  CURRENT_BASELINE_VERSION
+  toGitLabOutputFormat,
+  CURRENT_BASELINE_VERSION,
+  ErrorFormat
 } from './util'
 import { resolve } from 'path'
 import { rmSync } from 'fs'
-enum ErrorFormat {
-  GITLAB = 'gitlab',
-  HUMAN = 'human'
-}
 ;(async () => {
   const program = new Command()
 
@@ -147,9 +144,7 @@ Are your installed packages up to date?
           } found`
 
           if (options.errorFormat === ErrorFormat.GITLAB) {
-            const gitLabFormattedErrors = formatForGitLab(newErrorSummaries)
-
-            console.error(JSON.stringify(gitLabFormattedErrors, null, 2))
+            console.error(JSON.stringify(toGitLabOutputFormat(newErrorSummaries, specificErrorsMap, errorOptions), null, 2))
           } else if (options.errorFormat === ErrorFormat.HUMAN) {
             console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
 ${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
@@ -159,7 +154,7 @@ ${newErrorsCountMessage}. ${oldErrorsCount} error${
             } already in baseline.`)
           } else {
             console.error(`Invalid error format: ${options.errorFormat}`)
-            process.exit(0)
+            process.exit(1)
           }
           if (newErrorsCount > 0) {
             // Exit with a failure code so new errors fail CI by default

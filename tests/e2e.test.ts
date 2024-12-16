@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { ExecException, exec } from 'child_process'
+import { ErrorFormat } from '../src'
 
 /**
  * NOTE: This is the compiled CLI for this package to test that everything works end-to-end
@@ -380,6 +381,46 @@ describe('End-to-end tests', () => {
           src/util.ts(135,7)
 
           1 new error found. 1 error already in baseline.
+          "
+        `)
+      })
+    })
+    describe('--error-format option', () => {
+      it('fails with an invalid error format', async () => {
+        const invalidErrorFormat: string = 'invalid-format'
+
+        const checkOutput = await cli(
+          `check --error-format ${invalidErrorFormat}`,
+          basicTsErrorOutput
+        )
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatch(
+          `error: option '--error-format [error-format]' argument '${invalidErrorFormat}' is invalid.`
+        )
+      })
+
+      it('has expected gitlab output', async () => {
+        await cli('save', ' ')
+        const checkOutput = await cli(
+          `check --error-format ${ErrorFormat.GITLAB}`,
+          basicTsErrorOutput
+        )
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatchInlineSnapshot(`
+          "[
+            {
+              \\"description\\": \\"Type 'number' is not assignable to type 'string'.\\",
+              \\"check_name\\": \\"typescript-errors\\",
+              \\"fingerprint\\": \\"74fbc5bc3645b575167c6eca966b224014ff7e42\\",
+              \\"severity\\": \\"minor\\",
+              \\"location\\": {
+                \\"path\\": \\"src/util.ts\\",
+                \\"lines\\": {
+                  \\"begin\\": 134
+                }
+              }
+            }
+          ]
           "
         `)
       })
