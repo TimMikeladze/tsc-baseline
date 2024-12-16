@@ -124,18 +124,18 @@ describe('End-to-end tests', () => {
       only show new errors.
 
       Options:
-        -p --path <path>  Path to file to save baseline errors to. Defaults to
-                          .tsc-baseline.json
-        --ignoreMessages  Ignores specific type error messages and only counts errors
-                          by code.
-        -h, --help        display help for command
+        -p --path <path>           Path to file to save baseline errors to. Defaults
+                                   to .tsc-baseline.json
+        --ignoreMessages           Ignores specific type error messages and only
+                                   counts errors by code.
+        -h, --help                 display help for command
 
       Commands:
         save [message]
         add [hash]
         check [options] [message]
         clear
-        help [command]    display help for command
+        help [command]             display help for command
       "
     `)
   })

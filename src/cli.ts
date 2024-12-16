@@ -84,7 +84,7 @@ enum ErrorFormat {
         .default(ErrorFormat.HUMAN)
         .choices(Object.values(ErrorFormat))
     )
-    .action((message) => {
+    .action((message, options) => {
       if (stdin) {
         message = stdin
         if (message) {
@@ -107,21 +107,21 @@ enum ErrorFormat {
             if (baselineFileVersion < CURRENT_BASELINE_VERSION) {
               console.error(
                 `
-  The .tsc-baseline.json file at "${config.path}"
-  is out of date for this version of tsc-baseline.
-  
-  Please update the baseline file using the 'save' command.
-  `
-              )
-              process.exit(1)
-            } else {
-              console.error(
-                `
-  The .tsc-baseline.json file at "${config.path}"
-  is from a future version of tsc-baseline.
-  
-  Are your installed packages up to date?
-  `
+The .tsc-baseline.json file at "${config.path}"
+is out of date for this version of tsc-baseline.
+
+Please update the baseline file using the 'save' command.
+`
+            )
+            process.exit(1)
+          } else {
+            console.error(
+              `
+The .tsc-baseline.json file at "${config.path}"
+is from a future version of tsc-baseline.
+
+Are your installed packages up to date?
+`
               )
               process.exit(1)
             }
@@ -146,21 +146,20 @@ enum ErrorFormat {
             newErrorsCount === 1 ? '' : 's'
           } found`
 
-          const options = program.opts()
           if (options.errorFormat === ErrorFormat.GITLAB) {
             const gitLabFormattedErrors = formatForGitLab(newErrorSummaries)
 
             console.error(JSON.stringify(gitLabFormattedErrors, null, 2))
           } else if (options.errorFormat === ErrorFormat.HUMAN) {
             console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
-  ${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
-  
-  ${newErrorsCountMessage}. ${oldErrorsCount} error${
-    oldErrorsCount === 1 ? '' : 's'
-  } already in baseline.`)
+${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
+
+${newErrorsCountMessage}. ${oldErrorsCount} error${
+              oldErrorsCount === 1 ? '' : 's'
+            } already in baseline.`)
           } else {
             console.error(`Invalid error format: ${options.errorFormat}`)
-            process.exit(1)
+            process.exit(0)
           }
           if (newErrorsCount > 0) {
             // Exit with a failure code so new errors fail CI by default
