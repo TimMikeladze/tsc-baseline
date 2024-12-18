@@ -45,3 +45,14 @@ When you're done, you can delete the baseline file.
 ```console
 yarn tsc-baseline clear
 ```
+### Error Format Options
+
+You can specify the error format to be used when checking for new errors. By default, the standard error message will be shown. However, if you want the output in a GitLab-friendly format, you can use the `--error-format` option:
+
+- **Default Format:** Shows standard error messages.
+- **GitLab Format:** Use `--error-format gitlab` to output errors in a format suitable for GitLab pipelines.
+
+Example for GitLab format:
+
+```console
+yarn tsc | yarn tsc-baseline check --error-format gitlab
