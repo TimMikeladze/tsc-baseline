@@ -312,11 +312,11 @@ export const toGitLabOutputFormat = (
       errorOptions
     )
 
-    specificErrors.forEach((specificError) => {
+    specificErrors.forEach((specificError: SpecificError, index: number) => {
       result.push(<GitLabErrorFormat>{
         description: specificError.message,
         check_name: 'typescript-errors',
-        fingerprint: key,
+        fingerprint: `${key}-${index}`,
         severity: 'minor',
         location: {
           path: specificError.file,
