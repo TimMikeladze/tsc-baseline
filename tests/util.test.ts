@@ -13,10 +13,12 @@ import {
   getNewErrors,
   getTotalErrorsCount,
   toHumanReadableText,
+  toGitLabOutputFormat,
   addHashToBaseline,
   SpecificError,
   SpecificErrorsMap,
-  ErrorSummaryMap
+  ErrorSummaryMap,
+  GitLabErrorFormat
 } from '../src'
 
 describe('Utility Functions', () => {
@@ -382,6 +384,104 @@ file2.ts(5,6)
       ignoreMessages: false
     })
     expect(result).toBe(expectedOutput)
+  })
+
+  it('validate gitlab error-format', () => {
+    const specificErrorsMap: SpecificErrorsMap = new Map([
+      [
+        'file1.ts',
+        [
+          {
+            code: 'E001',
+            file: 'file1.ts',
+            message: 'Syntax error',
+            line: 1,
+            column: 2
+          },
+          {
+            code: 'E001',
+            file: 'file1.ts',
+            message: 'Syntax error',
+            line: 3,
+            column: 4
+          }
+        ]
+      ],
+      [
+        'file2.ts',
+        [
+          {
+            code: 'E002',
+            file: 'file2.ts',
+            message: 'Type mismatch',
+            line: 5,
+            column: 6
+          }
+        ]
+      ]
+    ])
+
+    const errorSummaryMap: ErrorSummaryMap = new Map([
+      [
+        'f3f953ce4418dad07eb9aa5df5d846ffdf8f4b4d',
+        {
+          code: 'E001',
+          file: 'file1.ts',
+          message: 'Syntax error',
+          count: 2
+        }
+      ],
+      [
+        '08f2382addc40a426eec5ac4f57c144143460680',
+        {
+          code: 'E002',
+          file: 'file2.ts',
+          message: 'Type mismatch',
+          count: 1
+        }
+      ]
+    ])
+
+    const result: GitLabErrorFormat[] = JSON.parse(toGitLabOutputFormat(errorSummaryMap, specificErrorsMap, { ignoreMessages: false }))
+
+    expect(result).toEqual<GitLabErrorFormat[]>([
+      {
+        description: 'Syntax error',
+        check_name: 'typescript-errors',
+        fingerprint: 'f3f953ce4418dad07eb9aa5df5d846ffdf8f4b4d-0',
+        severity: 'minor',
+        location: {
+          path: 'file1.ts',
+          lines: {
+            begin: 1
+          }
+        }
+      },
+      {
+        description: 'Syntax error',
+        check_name: 'typescript-errors',
+        fingerprint: 'f3f953ce4418dad07eb9aa5df5d846ffdf8f4b4d-1',
+        severity: 'minor',
+        location: {
+          path: 'file1.ts',
+          lines: {
+            begin: 3
+          }
+        }
+      },
+      {
+        description: 'Type mismatch',
+        check_name: 'typescript-errors',
+        fingerprint: '08f2382addc40a426eec5ac4f57c144143460680-0',
+        severity: 'minor',
+        location: {
+          path: 'file2.ts',
+          lines: {
+            begin: 5
+          }
+        }
+      }
+    ])
   })
 
   it('add hash to baseline', () => {
