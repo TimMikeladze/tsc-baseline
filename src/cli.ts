@@ -77,7 +77,7 @@ import { rmSync } from 'fs'
   program
     .command('check [message]')
     .addOption(
-      new Option('--error-format [error-format]', 'Format to output errors')
+      new Option('--error-format [error-format]', 'Specifies the format for outputting errors.')
         .default(ErrorFormat.HUMAN)
         .choices(Object.values(ErrorFormat))
     )
