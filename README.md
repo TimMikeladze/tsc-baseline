@@ -47,10 +47,10 @@ yarn tsc-baseline clear
 ```
 ### Error Format Options
 
-You can specify the error format to be used when checking for new errors. By default, the standard error message will be shown. However, if you want the output in a GitLab-friendly format, you can use the `--error-format` option:
+You can specify the error format to be used when checking for new errors with the `check` command. This option affects the output to `stderr`. By default, the standard error message format is used. However, if you want the output in a GitLab-friendly format, you can use the `--error-format` option:
 
-- **Default Format:** Shows standard error messages.
-- **GitLab Format:** Use `--error-format gitlab` to output errors in a format suitable for GitLab pipelines.
+- **Default Format (`human`):** Shows standard human-readable error messages.
+- **GitLab Format (`gitlab`):** Outputs errors in a format suitable for GitLab pipelines, making it easier to process in CI/CD workflows.
 
 Example for GitLab format:
 
