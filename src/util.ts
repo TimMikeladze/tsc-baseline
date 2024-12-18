@@ -306,25 +306,25 @@ export const toGitLabOutputFormat = (
   const result: GitLabErrorFormat[] = []
 
   for (const [key, error] of errorSummaryMap.entries()) {
-    const specificErrors = getSpecificErrorsMatchingSummary(
+    const specificErrors: SpecificError[] = getSpecificErrorsMatchingSummary(
       error,
       specificErrorMap,
       errorOptions
     )
 
-    const specificError: SpecificError = specificErrors[0] || {}
-
-    result.push({
-      description: error.message || 'Unknown error message',
-      check_name: 'typescript-errors',
-      fingerprint: key || 'unknown-fingerprint',
-      severity: 'minor',
-      location: {
-        path: specificError.file || 'unknown-file',
-        lines: {
-          begin: specificError.line || 0
+    specificErrors.forEach((specificError) => {
+      result.push(<GitLabErrorFormat>{
+        description: specificError.message,
+        check_name: 'typescript-errors',
+        fingerprint: key,
+        severity: 'minor',
+        location: {
+          path: specificError.file,
+          lines: {
+            begin: specificError.line
+          }
         }
-      }
+      })
     })
   }
 
