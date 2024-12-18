@@ -302,7 +302,7 @@ export const toGitLabOutputFormat = (
   errorSummaryMap: ErrorSummaryMap,
   specificErrorMap: SpecificErrorsMap,
   errorOptions: ErrorOptions
-): GitLabErrorFormat[] => {
+): string => {
   const result: GitLabErrorFormat[] = []
 
   for (const [key, error] of errorSummaryMap.entries()) {
@@ -312,7 +312,7 @@ export const toGitLabOutputFormat = (
       errorOptions
     )
 
-    const specificError = specificErrors[0] || {};
+    const specificError: SpecificError = specificErrors[0] || {}
 
     result.push({
       description: error.message || 'Unknown error message',
@@ -328,5 +328,5 @@ export const toGitLabOutputFormat = (
     })
   }
 
-  return result
+  return JSON.stringify(result, null, 2)
 }

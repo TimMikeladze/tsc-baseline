@@ -144,7 +144,7 @@ Are your installed packages up to date?
           } found`
 
           if (options.errorFormat === ErrorFormat.GITLAB) {
-            console.error(JSON.stringify(toGitLabOutputFormat(newErrorSummaries, specificErrorsMap, errorOptions), null, 2))
+            console.error(toGitLabOutputFormat(newErrorSummaries, specificErrorsMap, errorOptions))
           } else if (options.errorFormat === ErrorFormat.HUMAN) {
             console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
 ${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
