@@ -399,6 +399,18 @@ describe('End-to-end tests', () => {
         )
       })
 
+      it.each(Object.values(ErrorFormat))(
+        'succeed with valid error format "%s"',
+        async (errorFormat: string) => {
+          await cli('save', basicTsErrorOutput)
+          const checkOutput = await cli(
+            `check --error-format ${errorFormat}`,
+            basicTsErrorOutput
+          )
+          expect(checkOutput.code).toBe(0)
+        }
+      )
+
       it('has expected gitlab output', async () => {
         await cli('save', ' ')
         const checkOutput = await cli(
