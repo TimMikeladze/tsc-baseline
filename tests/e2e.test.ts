@@ -391,7 +391,7 @@ describe('End-to-end tests', () => {
 
         const checkOutput = await cli(
           `check --error-format ${invalidErrorFormat}`,
-          basicTsErrorOutput
+          ''
         )
         expect(checkOutput.code).toBe(1)
         expect(checkOutput.stderr).toMatch(
