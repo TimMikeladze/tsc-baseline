@@ -411,7 +411,7 @@ describe('End-to-end tests', () => {
             {
               \\"description\\": \\"Type 'number' is not assignable to type 'string'.\\",
               \\"check_name\\": \\"typescript-errors\\",
-              \\"fingerprint\\": \\"74fbc5bc3645b575167c6eca966b224014ff7e42\\",
+              \\"fingerprint\\": \\"74fbc5bc3645b575167c6eca966b224014ff7e42-0\\",
               \\"severity\\": \\"minor\\",
               \\"location\\": {
                 \\"path\\": \\"src/util.ts\\",
@@ -421,6 +421,19 @@ describe('End-to-end tests', () => {
               }
             }
           ]
+          "
+        `)
+      })
+
+      it('no new gitlab errors', async () => {
+        await cli('save', basicTsErrorOutput)
+        const checkOutput = await cli(
+          `check --error-format ${ErrorFormat.GITLAB}`,
+          basicTsErrorOutput
+        )
+        expect(checkOutput.code).toBe(0)
+        expect(checkOutput.stderr).toMatchInlineSnapshot(`
+          "[]
           "
         `)
       })
