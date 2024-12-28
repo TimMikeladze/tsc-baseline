@@ -35,10 +35,27 @@ export interface BaselineFile {
 
 export type SpecificErrorsMap = Map<string, SpecificError[]>
 export type ErrorSummaryMap = Map<string, ErrorSummary>
+export type GitLabErrorFormat = {
+  check_name: string
+  description: string
+  fingerprint: string
+  location: {
+    lines: {
+      begin: number
+    }
+    path: string
+  }
+  severity: string
+}
 
 export interface ParsingResult {
   errorSummaryMap: ErrorSummaryMap
   specificErrorsMap: SpecificErrorsMap
+}
+
+export enum ErrorFormat {
+  GITLAB = 'gitlab',
+  HUMAN = 'human'
 }
 
 type ErrorOptions = {
@@ -279,4 +296,37 @@ export const addHashToBaseline = (hash: string, filepath: string): void => {
   writeTypeScriptErrorsToFile(newErrors, filepath, {
     ignoreMessages: baselineErrorsFile.meta.ignoreMessages
   })
+}
+
+export const toGitLabOutputFormat = (
+  errorSummaryMap: ErrorSummaryMap,
+  specificErrorMap: SpecificErrorsMap,
+  errorOptions: ErrorOptions
+): string => {
+  const result: GitLabErrorFormat[] = []
+
+  for (const [key, error] of errorSummaryMap.entries()) {
+    const specificErrors: SpecificError[] = getSpecificErrorsMatchingSummary(
+      error,
+      specificErrorMap,
+      errorOptions
+    )
+
+    specificErrors.forEach((specificError: SpecificError, index: number) => {
+      result.push(<GitLabErrorFormat>{
+        description: specificError.message,
+        check_name: 'typescript-errors',
+        fingerprint: `${key}-${index}`,
+        severity: 'minor',
+        location: {
+          path: specificError.file,
+          lines: {
+            begin: specificError.line
+          }
+        }
+      })
+    })
+  }
+
+  return JSON.stringify(result, null, 2)
 }

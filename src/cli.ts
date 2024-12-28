@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander'
+import { Command, Option } from 'commander'
 import {
   addHashToBaseline,
   getNewErrors,
@@ -12,7 +12,9 @@ import {
   isBaselineVersionCurrent,
   getErrorSummaryMap,
   getBaselineFileVersion,
-  CURRENT_BASELINE_VERSION
+  toGitLabOutputFormat,
+  CURRENT_BASELINE_VERSION,
+  ErrorFormat
 } from './util'
 import { resolve } from 'path'
 import { rmSync } from 'fs'
@@ -72,29 +74,36 @@ import { rmSync } from 'fs'
     }
   })
 
-  program.command('check [message]').action((message) => {
-    if (stdin) {
-      message = stdin
-      if (message) {
-        const config = getConfig()
-        let baselineFile
-        try {
-          baselineFile = readBaselineErrorsFile(config.path)
-        } catch (err) {
-          console.error(
-            `
-Unable to read the .tsc-baseline.json file at "${config.path}".
-
-Has the baseline file been properly saved with the 'save' command?
-`
-          )
-          process.exit(1)
-        }
-        if (!isBaselineVersionCurrent(baselineFile)) {
-          const baselineFileVersion = getBaselineFileVersion(baselineFile)
-          if (baselineFileVersion < CURRENT_BASELINE_VERSION) {
+  program
+    .command('check [message]')
+    .addOption(
+      new Option('--error-format [error-format]', 'Specifies the format for outputting errors.')
+        .default(ErrorFormat.HUMAN)
+        .choices(Object.values(ErrorFormat))
+    )
+    .action((message, options) => {
+      if (stdin) {
+        message = stdin
+        if (message) {
+          const config = getConfig()
+          let baselineFile
+          try {
+            baselineFile = readBaselineErrorsFile(config.path)
+          } catch (err) {
             console.error(
               `
+  Unable to read the .tsc-baseline.json file at "${config.path}".
+  
+  Has the baseline file been properly saved with the 'save' command?
+  `
+            )
+            process.exit(1)
+          }
+          if (!isBaselineVersionCurrent(baselineFile)) {
+            const baselineFileVersion = getBaselineFileVersion(baselineFile)
+            if (baselineFileVersion < CURRENT_BASELINE_VERSION) {
+              console.error(
+                `
 The .tsc-baseline.json file at "${config.path}"
 is out of date for this version of tsc-baseline.
 
@@ -110,44 +119,50 @@ is from a future version of tsc-baseline.
 
 Are your installed packages up to date?
 `
-            )
-            process.exit(1)
+              )
+              process.exit(1)
+            }
           }
-        }
 
-        const oldErrorSummaries = getErrorSummaryMap(baselineFile)
-        const errorOptions = {
-          ignoreMessages: baselineFile.meta.ignoreMessages
-        }
-        const { specificErrorsMap, errorSummaryMap } = parseTypeScriptErrors(
-          message,
-          errorOptions
-        )
-        const newErrorSummaries = getNewErrors(
-          oldErrorSummaries,
-          errorSummaryMap
-        )
-        const newErrorsCount = getTotalErrorsCount(newErrorSummaries)
-        const oldErrorsCount = getTotalErrorsCount(oldErrorSummaries)
+          const oldErrorSummaries = getErrorSummaryMap(baselineFile)
+          const errorOptions = {
+            ignoreMessages: baselineFile.meta.ignoreMessages
+          }
+          const { specificErrorsMap, errorSummaryMap } = parseTypeScriptErrors(
+            message,
+            errorOptions
+          )
+          const newErrorSummaries = getNewErrors(
+            oldErrorSummaries,
+            errorSummaryMap
+          )
+          const newErrorsCount = getTotalErrorsCount(newErrorSummaries)
+          const oldErrorsCount = getTotalErrorsCount(oldErrorSummaries)
 
-        const newErrorsCountMessage = `${newErrorsCount} new error${
-          newErrorsCount === 1 ? '' : 's'
-        } found`
+          const newErrorsCountMessage = `${newErrorsCount} new error${
+            newErrorsCount === 1 ? '' : 's'
+          } found`
 
-        console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
+          if (options.errorFormat === ErrorFormat.GITLAB) {
+            console.error(toGitLabOutputFormat(newErrorSummaries, specificErrorsMap, errorOptions))
+          } else if (options.errorFormat === ErrorFormat.HUMAN) {
+            console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
 ${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
 
 ${newErrorsCountMessage}. ${oldErrorsCount} error${
-          oldErrorsCount === 1 ? '' : 's'
-        } already in baseline.`)
-
-        if (newErrorsCount > 0) {
-          // Exit with a failure code so new errors fail CI by default
-          process.exit(1)
+              oldErrorsCount === 1 ? '' : 's'
+            } already in baseline.`)
+          } else {
+            console.error(`Invalid error format: ${options.errorFormat}`)
+            process.exit(1)
+          }
+          if (newErrorsCount > 0) {
+            // Exit with a failure code so new errors fail CI by default
+            process.exit(1)
+          }
         }
       }
-    }
-  })
+    })
 
   program.command('clear').action(() => {
     const config = getConfig()

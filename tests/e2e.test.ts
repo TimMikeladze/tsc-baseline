@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { ExecException, exec } from 'child_process'
+import { ErrorFormat } from '../src'
 
 /**
  * NOTE: This is the compiled CLI for this package to test that everything works end-to-end
@@ -124,18 +125,18 @@ describe('End-to-end tests', () => {
       only show new errors.
 
       Options:
-        -p --path <path>  Path to file to save baseline errors to. Defaults to
-                          .tsc-baseline.json
-        --ignoreMessages  Ignores specific type error messages and only counts errors
-                          by code.
-        -h, --help        display help for command
+        -p --path <path>           Path to file to save baseline errors to. Defaults
+                                   to .tsc-baseline.json
+        --ignoreMessages           Ignores specific type error messages and only
+                                   counts errors by code.
+        -h, --help                 display help for command
 
       Commands:
         save [message]
         add [hash]
-        check [message]
+        check [options] [message]
         clear
-        help [command]    display help for command
+        help [command]             display help for command
       "
     `)
   })
@@ -380,6 +381,71 @@ describe('End-to-end tests', () => {
           src/util.ts(135,7)
 
           1 new error found. 1 error already in baseline.
+          "
+        `)
+      })
+    })
+    describe('--error-format option', () => {
+      it('fails with an invalid error format', async () => {
+        const invalidErrorFormat: string = 'invalid-format'
+
+        const checkOutput = await cli(
+          `check --error-format ${invalidErrorFormat}`,
+          ''
+        )
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatch(
+          `error: option '--error-format [error-format]' argument '${invalidErrorFormat}' is invalid.`
+        )
+      })
+
+      it.each(Object.values(ErrorFormat))(
+        'succeed with valid error format "%s"',
+        async (errorFormat: string) => {
+          await cli('save', basicTsErrorOutput)
+          const checkOutput = await cli(
+            `check --error-format ${errorFormat}`,
+            basicTsErrorOutput
+          )
+          expect(checkOutput.code).toBe(0)
+        }
+      )
+
+      it('has expected gitlab output', async () => {
+        await cli('save', ' ')
+        const checkOutput = await cli(
+          `check --error-format ${ErrorFormat.GITLAB}`,
+          basicTsErrorOutput
+        )
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatchInlineSnapshot(`
+          "[
+            {
+              \\"description\\": \\"Type 'number' is not assignable to type 'string'.\\",
+              \\"check_name\\": \\"typescript-errors\\",
+              \\"fingerprint\\": \\"74fbc5bc3645b575167c6eca966b224014ff7e42-0\\",
+              \\"severity\\": \\"minor\\",
+              \\"location\\": {
+                \\"path\\": \\"src/util.ts\\",
+                \\"lines\\": {
+                  \\"begin\\": 134
+                }
+              }
+            }
+          ]
+          "
+        `)
+      })
+
+      it('no new gitlab errors', async () => {
+        await cli('save', basicTsErrorOutput)
+        const checkOutput = await cli(
+          `check --error-format ${ErrorFormat.GITLAB}`,
+          basicTsErrorOutput
+        )
+        expect(checkOutput.code).toBe(0)
+        expect(checkOutput.stderr).toMatchInlineSnapshot(`
+          "[]
           "
         `)
       })
