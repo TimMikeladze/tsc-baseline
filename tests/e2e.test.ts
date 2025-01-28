@@ -385,6 +385,153 @@ describe('End-to-end tests', () => {
         `)
       })
     })
+
+    describe('--reportUnmatchedIgnoredErrors flag', () => {
+      it('does reports unmatched errors also when new errors do not match baseline errors', async () => {
+        const originalErrors = removeIndent`
+          > tsc-baseline@1.4.0 type-check
+          > tsc
+  
+          src/util.ts(13,17): error TS2322: Type 'number' is not assignable to type 'string'.
+        `
+        await cli('save', originalErrors)
+
+        const newErrors = removeIndent`
+          > tsc-baseline@1.4.0 type-check
+          > tsc
+  
+          src/util.ts(233,7): error TS2322: Type '{ invalid: number; }' is not assignable to type 'number'.
+        `
+        const checkOutput = await cli(
+          'check --reportUnmatchedIgnoredErrors',
+          newErrors
+        )
+
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatchInlineSnapshot(`
+          "
+          New errors found:
+          File: src/util.ts
+          Message: Type '{ invalid: number; }' is not assignable to type 'number'.
+          Code: TS2322
+          Hash: c1b4ab07321ca58aac93307f3be23bc0a8592ee7
+          Count of new errors: 1
+          1 current error:
+          src/util.ts(233,7)
+
+          1 new error found. 1 error already in baseline.
+
+          Unmatched ignored errors:
+          File: src/util.ts
+          Message: Type 'number' is not assignable to type 'string'.
+          Code: TS2322
+          Hash: 74fbc5bc3645b575167c6eca966b224014ff7e42
+          Count of unmatched ignored errors: 1
+
+          "
+        `)
+      })
+
+      it('does reports unmatched errors when there are no new errors', async () => {
+        const originalErrors = removeIndent`
+          > tsc-baseline@1.4.0 type-check
+          > tsc
+  
+          src/util.ts(13,17): error TS2322: Type 'number' is not assignable to type 'string'.
+        `
+        await cli('save', originalErrors)
+
+        const newErrors = removeIndent`
+          > tsc-baseline@1.4.0 type-check
+          > tsc
+        `
+        const checkOutput = await cli(
+          'check --reportUnmatchedIgnoredErrors',
+          newErrors
+        )
+
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatchInlineSnapshot(`
+          "
+
+
+          0 new errors found. 1 error already in baseline.
+
+          Unmatched ignored errors:
+          File: src/util.ts
+          Message: Type 'number' is not assignable to type 'string'.
+          Code: TS2322
+          Hash: 74fbc5bc3645b575167c6eca966b224014ff7e42
+          Count of unmatched ignored errors: 1
+
+          "
+        `)
+      })
+
+      it('does not report unmatched errors when there are no new errors and no unmatched errors', async () => {
+        const originalErrors = removeIndent`
+          > tsc-baseline@1.4.0 type-check
+          > tsc
+  
+          src/util.ts(13,17): error TS2322: Type 'number' is not assignable to type 'string'.
+        `
+        await cli('save', originalErrors)
+
+        const newErrors = removeIndent`
+          > tsc-baseline@1.4.0 type-check
+          > tsc
+        `
+        const checkOutput = await cli('check', newErrors)
+
+        expect(checkOutput.code).toBe(0)
+        expect(checkOutput.stderr).toMatchInlineSnapshot(`
+          "
+
+
+          0 new errors found. 1 error already in baseline.
+          "
+        `)
+      })
+
+      it('does not report unmatched errors when there are new errors', async () => {
+        const originalErrors = removeIndent`
+          > tsc-baseline@1.4.0 type-check
+          > tsc
+  
+          src/util.ts(13,17): error TS2322: Type 'number' is not assignable to type 'string'.
+        `
+        await cli('save', originalErrors)
+
+        const newErrors = removeIndent`
+          > tsc-baseline@1.4.0 type-check
+          > tsc
+  
+          src/util.ts(133,7): error TS2322: Type 'number' is not assignable to type 'string'.
+          src/util.ts(135,7): error TS2322: Type '{ invalid: number; }' is not assignable to type 'number'.
+        `
+        const checkOutput = await cli(
+          'check --reportUnmatchedIgnoredErrors',
+          newErrors
+        )
+
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toMatchInlineSnapshot(`
+          "
+          New errors found:
+          File: src/util.ts
+          Message: Type '{ invalid: number; }' is not assignable to type 'number'.
+          Code: TS2322
+          Hash: c1b4ab07321ca58aac93307f3be23bc0a8592ee7
+          Count of new errors: 1
+          1 current error:
+          src/util.ts(135,7)
+
+          1 new error found. 1 error already in baseline.
+          "
+        `)
+      })
+    })
+
     describe('--error-format option', () => {
       it('fails with an invalid error format', async () => {
         const invalidErrorFormat: string = 'invalid-format'

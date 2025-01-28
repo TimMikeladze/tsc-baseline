@@ -77,9 +77,16 @@ import { rmSync } from 'fs'
   program
     .command('check [message]')
     .addOption(
-      new Option('--error-format [error-format]', 'Specifies the format for outputting errors.')
+      new Option(
+        '--error-format [error-format]',
+        'Specifies the format for outputting errors.'
+      )
         .default(ErrorFormat.HUMAN)
         .choices(Object.values(ErrorFormat))
+    )
+    .option(
+      '--reportUnmatchedIgnoredErrors',
+      'Reports unmatched ignored errors that are in the baseline but not in the new errors.'
     )
     .action((message, options) => {
       if (stdin) {
@@ -109,11 +116,11 @@ is out of date for this version of tsc-baseline.
 
 Please update the baseline file using the 'save' command.
 `
-            )
-            process.exit(1)
-          } else {
-            console.error(
-              `
+              )
+              process.exit(1)
+            } else {
+              console.error(
+                `
 The .tsc-baseline.json file at "${config.path}"
 is from a future version of tsc-baseline.
 
@@ -144,7 +151,13 @@ Are your installed packages up to date?
           } found`
 
           if (options.errorFormat === ErrorFormat.GITLAB) {
-            console.error(toGitLabOutputFormat(newErrorSummaries, specificErrorsMap, errorOptions))
+            console.error(
+              toGitLabOutputFormat(
+                newErrorSummaries,
+                specificErrorsMap,
+                errorOptions
+              )
+            )
           } else if (options.errorFormat === ErrorFormat.HUMAN) {
             console.error(`${newErrorsCount > 0 ? '\nNew errors found:' : ''}
 ${toHumanReadableText(newErrorSummaries, specificErrorsMap, errorOptions)}
@@ -156,7 +169,31 @@ ${newErrorsCountMessage}. ${oldErrorsCount} error${
             console.error(`Invalid error format: ${options.errorFormat}`)
             process.exit(1)
           }
-          if (newErrorsCount > 0) {
+
+          let unmatchedIgnoredErrorsCount = 0
+          if (options.reportUnmatchedIgnoredErrors) {
+            const unmatchedIgnoredErrors = getNewErrors(
+              errorSummaryMap,
+              oldErrorSummaries
+            )
+            unmatchedIgnoredErrorsCount = getTotalErrorsCount(
+              unmatchedIgnoredErrors
+            )
+            if (unmatchedIgnoredErrorsCount > 0) {
+              console.error(`
+Unmatched ignored errors:
+${toHumanReadableText(
+  unmatchedIgnoredErrors,
+  specificErrorsMap,
+  errorOptions,
+  true
+)}
+Count of unmatched ignored errors: ${unmatchedIgnoredErrorsCount}
+`)
+            }
+          }
+
+          if (newErrorsCount > 0 || unmatchedIgnoredErrorsCount > 0) {
             // Exit with a failure code so new errors fail CI by default
             process.exit(1)
           }

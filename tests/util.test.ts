@@ -442,7 +442,11 @@ file2.ts(5,6)
       ]
     ])
 
-    const result: GitLabErrorFormat[] = JSON.parse(toGitLabOutputFormat(errorSummaryMap, specificErrorsMap, { ignoreMessages: false }))
+    const result: GitLabErrorFormat[] = JSON.parse(
+      toGitLabOutputFormat(errorSummaryMap, specificErrorsMap, {
+        ignoreMessages: false
+      })
+    )
 
     expect(result).toEqual<GitLabErrorFormat[]>([
       {
