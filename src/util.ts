@@ -217,7 +217,8 @@ export const getTotalErrorsCount = (errorMap: ErrorSummaryMap): number =>
 export const toHumanReadableText = (
   errorSummaryMap: ErrorSummaryMap,
   specificErrorMap: SpecificErrorsMap,
-  errorOptions: ErrorOptions
+  errorOptions: ErrorOptions,
+  isReportingUnmatchedErrors = false
 ): string => {
   let log = ''
 
@@ -234,17 +235,20 @@ export const toHumanReadableText = (
     }
     log += `Code: ${error.code}\n`
     log += `Hash: ${key}\n`
-    log += `Count of new errors: ${error.count}\n`
-    log += `${specificErrors.length} current error${
-      specificErrors.length === 1 ? '' : 's'
-    }:\n`
 
-    log += specificErrors
-      .map(
-        (specificError) =>
-          `${specificError.file}(${specificError.line},${specificError.column})`
-      )
-      .join('\n')
+    if (!isReportingUnmatchedErrors) {
+      log += `Count of new errors: ${error.count}\n`
+      log += `${specificErrors.length} current error${
+        specificErrors.length === 1 ? '' : 's'
+      }:\n`
+
+      log += specificErrors
+        .map(
+          (specificError) =>
+            `${specificError.file}(${specificError.line},${specificError.column})`
+        )
+        .join('\n')
+    }
 
     log += '\n\n'
   }
