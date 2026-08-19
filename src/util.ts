@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'fs'
+import { normalize } from 'path'
 import objectHash from 'object-hash'
 
 export const CURRENT_BASELINE_VERSION = 1
@@ -205,6 +206,38 @@ export const getNewErrors = (
   }
 
   return result
+}
+
+export const readChangedFilesFile = (filepath: string): string[] =>
+  readFileSync(filepath, { encoding: 'utf-8' })
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+/**
+ * Keeps only the errors located in one of the given files.
+ *
+ * A changed file matches an error when both paths are equal, or when the changed
+ * path ends with the error path. The second case covers the common setup where
+ * the file list comes from `git diff --name-only` (paths relative to the repo)
+ * while tsc ran in a subdirectory and reports paths relative to that directory.
+ */
+export const filterErrorsByFiles = (
+  errors: ErrorSummaryMap,
+  changedFiles: string[]
+): ErrorSummaryMap => {
+  const normalized = changedFiles.map((file) => normalize(file))
+
+  const isChanged = (errorFile: string): boolean => {
+    const file = normalize(errorFile)
+    return normalized.some(
+      (changed) => changed === file || changed.endsWith(`/${file}`)
+    )
+  }
+
+  return new Map(
+    Array.from(errors).filter(([, error]) => isChanged(error.file))
+  )
 }
 
 export const getTotalErrorsCount = (errorMap: ErrorSummaryMap): number =>

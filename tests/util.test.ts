@@ -12,6 +12,7 @@ import {
   getErrorSummaryMap,
   getNewErrors,
   getTotalErrorsCount,
+  filterErrorsByFiles,
   toHumanReadableText,
   toGitLabOutputFormat,
   addHashToBaseline,
@@ -303,6 +304,42 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
       ]
     ])
     expect(getTotalErrorsCount(newErrors)).toBe(5)
+  })
+
+  describe('filterErrorsByFiles', () => {
+    const errors = new Map<string, ErrorSummary>([
+      [
+        'error1',
+        { code: 'error1', file: 'src/a.ts', count: 1, message: 'Error 1' }
+      ],
+      [
+        'error2',
+        { code: 'error2', file: 'src/b.ts', count: 2, message: 'Error 2' }
+      ]
+    ])
+
+    it('keeps only the errors located in the given files', () => {
+      const result = filterErrorsByFiles(errors, ['src/a.ts'])
+
+      expect(Array.from(result.keys())).toEqual(['error1'])
+    })
+
+    it('matches when the changed path carries a directory prefix', () => {
+      // `git diff --name-only` reports paths from the repo root, while tsc run
+      // in a subdirectory reports them from that subdirectory.
+      const result = filterErrorsByFiles(errors, ['packages/web/src/b.ts'])
+
+      expect(Array.from(result.keys())).toEqual(['error2'])
+    })
+
+    it('returns an empty map when no file matches', () => {
+      expect(filterErrorsByFiles(errors, ['src/other.ts']).size).toBe(0)
+      expect(filterErrorsByFiles(errors, []).size).toBe(0)
+    })
+
+    it('does not match on a partial file name', () => {
+      expect(filterErrorsByFiles(errors, ['src/aa.ts']).size).toBe(0)
+    })
   })
 
   it('should format error map to human-readable text', () => {

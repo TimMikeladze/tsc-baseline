@@ -14,7 +14,9 @@ import {
   getBaselineFileVersion,
   toGitLabOutputFormat,
   CURRENT_BASELINE_VERSION,
-  ErrorFormat
+  ErrorFormat,
+  filterErrorsByFiles,
+  readChangedFilesFile
 } from './util'
 import { resolve } from 'path'
 import { rmSync } from 'fs'
@@ -88,6 +90,10 @@ import { rmSync } from 'fs'
       '--reportUnmatchedIgnoredErrors',
       'Reports unmatched ignored errors that are in the baseline but not in the new errors.'
     )
+    .option(
+      '--changedFiles <path>',
+      'Path to a file listing changed files, one per line. Only new errors in those files fail the command; new errors elsewhere are still reported.'
+    )
     .action((message, options) => {
       if (stdin) {
         message = stdin
@@ -146,9 +152,27 @@ Are your installed packages up to date?
           const newErrorsCount = getTotalErrorsCount(newErrorSummaries)
           const oldErrorsCount = getTotalErrorsCount(oldErrorSummaries)
 
-          const newErrorsCountMessage = `${newErrorsCount} new error${
-            newErrorsCount === 1 ? '' : 's'
-          } found`
+          // Only errors in the changed files decide the exit code. The others are
+          // still printed, they just belong to code this run did not touch.
+          const blockingErrorSummaries = options.changedFiles
+            ? filterErrorsByFiles(
+                newErrorSummaries,
+                readChangedFilesFile(options.changedFiles)
+              )
+            : newErrorSummaries
+          const blockingErrorsCount = getTotalErrorsCount(
+            blockingErrorSummaries
+          )
+
+          const newErrorsCountMessage = options.changedFiles
+            ? `${blockingErrorsCount} new error${
+                blockingErrorsCount === 1 ? '' : 's'
+              } found in the changed files, ${
+                newErrorsCount - blockingErrorsCount
+              } elsewhere`
+            : `${newErrorsCount} new error${
+                newErrorsCount === 1 ? '' : 's'
+              } found`
 
           if (options.errorFormat === ErrorFormat.GITLAB) {
             console.error(
@@ -193,7 +217,7 @@ Count of unmatched ignored errors: ${unmatchedIgnoredErrorsCount}
             }
           }
 
-          if (newErrorsCount > 0 || unmatchedIgnoredErrorsCount > 0) {
+          if (blockingErrorsCount > 0 || unmatchedIgnoredErrorsCount > 0) {
             // Exit with a failure code so new errors fail CI by default
             process.exit(1)
           }
