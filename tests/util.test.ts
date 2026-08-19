@@ -79,6 +79,73 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     expect(errorTs1128.count).toBe(3)
   })
 
+  it('parseTypeScriptErrors includes the indented details of an error', () => {
+    const errorLog = `src/a.ts(5,7): error TS2322: Type '(e: { kind: "b"; }) => void' is not assignable to type 'Handler'.
+  Types of parameters 'e' and 'e' are incompatible.
+    Type '{ kind: "a"; }' is not assignable to type '{ kind: "b"; }'.
+      Types of property 'kind' are incompatible.
+        Type '"a"' is not assignable to type '"b"'.
+src/a.ts(8,7): error TS2739: Type '{ x: number; }' is missing the following properties from type 'Big': y, z`
+
+    const { specificErrorsMap } = parseTypeScriptErrors(errorLog, {
+      ignoreMessages: false
+    })
+
+    const errors = specificErrorsMap.get('src/a.ts')
+    if (!errors) {
+      throw new Error('Could not find the errors for src/a.ts.')
+    }
+
+    expect(errors[0].message).toBe(
+      `Type '(e: { kind: "b"; }) => void' is not assignable to type 'Handler'.
+  Types of parameters 'e' and 'e' are incompatible.
+    Type '{ kind: "a"; }' is not assignable to type '{ kind: "b"; }'.
+      Types of property 'kind' are incompatible.
+        Type '"a"' is not assignable to type '"b"'.`
+    )
+    expect(errors[1].message).toBe(
+      "Type '{ x: number; }' is missing the following properties from type 'Big': y, z"
+    )
+  })
+
+  it('parseTypeScriptErrors keeps errors apart when only their details differ', () => {
+    const errorLog = `src/a.ts(5,7): error TS2322: Type 'X' is not assignable to type 'Y'.
+  Types of property 'a' are incompatible.
+src/a.ts(9,7): error TS2322: Type 'X' is not assignable to type 'Y'.
+  Types of property 'b' are incompatible.`
+
+    const { errorSummaryMap } = parseTypeScriptErrors(errorLog, {
+      ignoreMessages: false
+    })
+
+    // Both errors share a first line. Without their details they would collapse
+    // into a single baseline entry, hiding one of the two.
+    expect(errorSummaryMap.size).toBe(2)
+    expect(getTotalErrorsCount(errorSummaryMap)).toBe(2)
+  })
+
+  it('parseTypeScriptErrors ignores unindented lines between errors', () => {
+    const errorLog = `yarn run v1.22.19
+$ tsc
+src/a.ts(1,1): error TS1005: ',' expected.
+  This detail belongs to the error above.
+error Command failed with exit code 2.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`
+
+    const { specificErrorsMap } = parseTypeScriptErrors(errorLog, {
+      ignoreMessages: false
+    })
+
+    const errors = specificErrorsMap.get('src/a.ts')
+    if (!errors) {
+      throw new Error('Could not find the errors for src/a.ts.')
+    }
+
+    expect(errors[0].message).toBe(
+      "',' expected.\n  This detail belongs to the error above."
+    )
+  })
+
   it('writeTypeScriptErrorsToFile correctly writes errors to a file', () => {
     const errorMap = new Map<string, ErrorSummary>()
     errorMap.set('8d4f5b0a6c282e236e4f437a50410d72', {

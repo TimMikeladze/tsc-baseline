@@ -120,20 +120,37 @@ export const parseTypeScriptErrors = (
     errorSummaryMap.set(key, errorSummary)
   }
 
+  // tsc prints the details of an error on indented lines below it. They are part
+  // of the message: without them, two errors sharing a first line hash to the
+  // same entry, so adding one to the baseline silently hides the other.
+  const errors: SpecificError[] = []
+  let currentError: SpecificError | null = null
+
   for (const line of lines) {
     const match = line.match(errorPattern)
-    if (match) {
-      const [, file, lineStr, columnStr, code, message] = match
-      const error: SpecificError = {
-        file,
-        code,
-        message,
-        line: parseInt(lineStr),
-        column: parseInt(columnStr)
+
+    if (!match) {
+      if (currentError && /^\s+\S/.test(line)) {
+        currentError.message += `\n${line.trimEnd()}`
       }
-      addSpecificErrorToMap(error.file, error)
-      addErrorToSummary(error)
+      continue
     }
+
+    const [, file, lineStr, columnStr, code, message] = match
+    currentError = {
+      file,
+      code,
+      message,
+      line: parseInt(lineStr),
+      column: parseInt(columnStr)
+    }
+    errors.push(currentError)
+  }
+
+  // Summaries are built once every message is complete, as the hash depends on it
+  for (const error of errors) {
+    addSpecificErrorToMap(error.file, error)
+    addErrorToSummary(error)
   }
 
   return { specificErrorsMap, errorSummaryMap }
