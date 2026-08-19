@@ -26,6 +26,7 @@ export interface OldBaselineFile {
 export interface BaselineFile {
   meta: {
     baselineFileVersion: number
+    exclude?: string[]
     ignoreMessages: boolean
   }
   // eslint-disable-next-line typescript-sort-keys/interface
@@ -60,8 +61,44 @@ export enum ErrorFormat {
 }
 
 type ErrorOptions = {
+  exclude?: string[]
   ignoreMessages: boolean
 }
+
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const patternToRegExp = (pattern: string): RegExp => {
+  // `**` crosses path separators, a single `*` stays inside one segment. Only the
+  // literal parts in between are escaped, so a pattern cannot inject a regex.
+  const source = pattern
+    .split('**')
+    .map((part) => part.split('*').map(escapeRegExp).join('[^/]*'))
+    .join('.*')
+
+  return new RegExp(`^${source}$`)
+}
+
+/**
+ * Tells whether an error's file is covered by one of the exclusion patterns.
+ *
+ * - a pattern ending with `/` drops everything under that directory
+ * - `*` matches within a path segment, `**` matches across segments
+ * - anything else matches the path itself, or its trailing part, so a pattern
+ *   works whether or not tsc reports paths from the repository root
+ */
+export const isFileExcluded = (file: string, patterns: string[]): boolean =>
+  patterns.some((pattern) => {
+    if (pattern.endsWith('/')) {
+      return file.startsWith(pattern) || file.includes(`/${pattern}`)
+    }
+
+    if (pattern.includes('*')) {
+      return patternToRegExp(pattern).test(file)
+    }
+
+    return file === pattern || file.endsWith(`/${pattern}`)
+  })
 
 // Hash just the error summary, not the count so that we can easily
 // modify the count independently
@@ -78,7 +115,7 @@ const getErrorSummaryHash = (
 
 export const parseTypeScriptErrors = (
   errorLog: string,
-  { ignoreMessages }: ErrorOptions
+  { ignoreMessages, exclude = [] }: ErrorOptions
 ): ParsingResult => {
   const errorPattern = /^(.+)\((\d+),(\d+)\): error (\w+): (.+)$/
 
@@ -138,6 +175,15 @@ export const parseTypeScriptErrors = (
     }
 
     const [, file, lineStr, columnStr, code, message] = match
+
+    // Reset first, so that the detail lines of an excluded error are dropped
+    // with it rather than appended to the error above
+    currentError = null
+
+    if (isFileExcluded(file, exclude)) {
+      continue
+    }
+
     currentError = {
       file,
       code,
@@ -165,6 +211,11 @@ export const writeTypeScriptErrorsToFile = (
   const newBaselineFile: BaselineFile = {
     meta: {
       baselineFileVersion: CURRENT_BASELINE_VERSION,
+      // Recorded so that `check` applies the same exclusions as `save` did,
+      // and only written when set, to leave existing baseline files untouched
+      ...(errorOptions.exclude?.length
+        ? { exclude: errorOptions.exclude }
+        : {}),
       ignoreMessages: errorOptions.ignoreMessages
     },
     errors: Object.fromEntries(map)
