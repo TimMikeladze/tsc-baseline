@@ -279,6 +279,61 @@ describe('End-to-end tests', () => {
       `)
     })
 
+    describe('--changedFiles', () => {
+      const newErrors = removeIndent`
+        src/util.ts(133,7): error TS2322: Type 'number' is not assignable to type 'string'.
+        src/other.ts(4,2): error TS2322: Type '{ invalid: number; }' is not assignable to type 'number'.
+      `
+
+      const writeChangedFiles = (contents: string): string => {
+        const changedFilesPath = path.resolve(tempDir, 'changed-files.txt')
+        fs.writeFileSync(changedFilesPath, contents)
+        return changedFilesPath
+      }
+
+      it('fails on a new error inside a changed file', async () => {
+        await cli('save', ' ')
+        const changedFilesPath = writeChangedFiles('src/util.ts\n')
+
+        const checkOutput = await cli(
+          `check --changedFiles ${changedFilesPath}`,
+          newErrors
+        )
+
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toContain(
+          '1 new error found in the changed files, 1 elsewhere'
+        )
+      })
+
+      it('passes when the new errors are all outside the changed files', async () => {
+        await cli('save', ' ')
+        const changedFilesPath = writeChangedFiles('src/untouched.ts\n')
+
+        const checkOutput = await cli(
+          `check --changedFiles ${changedFilesPath}`,
+          newErrors
+        )
+
+        expect(checkOutput.code).toBe(0)
+        expect(checkOutput.stderr).toContain(
+          '0 new errors found in the changed files, 2 elsewhere'
+        )
+      })
+
+      it('still reports the errors found outside the changed files', async () => {
+        await cli('save', ' ')
+        const changedFilesPath = writeChangedFiles('src/untouched.ts\n')
+
+        const checkOutput = await cli(
+          `check --changedFiles ${changedFilesPath}`,
+          newErrors
+        )
+
+        expect(checkOutput.stderr).toContain('src/other.ts')
+      })
+    })
+
     describe('baseline file validation', () => {
       it('gives a helpful error if no baseline file is found', async () => {
         const checkOutput = await cli('check', ' ')

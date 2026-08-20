@@ -45,6 +45,24 @@ When you're done, you can delete the baseline file.
 ```console
 yarn tsc-baseline clear
 ```
+
+### Scoping the check to changed files
+
+On a large baseline, a pull request can fail on errors it has nothing to do with: a
+dependency bump or a shared type edit can surface new errors all over the codebase.
+`--changedFiles` takes a file listing the paths touched by the current change, one
+per line, and only lets errors inside those files fail the command. New errors
+elsewhere are still printed, they just do not change the exit code.
+
+```console
+git diff --name-only origin/main... > changed-files.txt
+yarn tsc | yarn tsc-baseline check --changedFiles changed-files.txt
+```
+
+A changed path matches an error when the two are equal, or when the changed path
+ends with the error path, so a list of repo-relative paths still matches when `tsc`
+runs from a subdirectory.
+
 ### Error Format Options
 
 You can specify the error format to be used when checking for new errors with the `check` command. This option affects the output to `stderr`. By default, the standard error message format is used. However, if you want the output in a GitLab-friendly format, you can use the `--error-format` option:
@@ -56,3 +74,4 @@ Example for GitLab format:
 
 ```console
 yarn tsc | yarn tsc-baseline check --error-format gitlab
+```
