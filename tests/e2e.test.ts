@@ -154,11 +154,11 @@ describe('End-to-end tests', () => {
       expect(fs.readFileSync(getBaselinePath(), 'utf-8'))
         .toMatchInlineSnapshot(`
           "{
-            \\"meta\\": {
-              \\"baselineFileVersion\\": 1,
-              \\"ignoreMessages\\": false
+            "meta": {
+              "baselineFileVersion": 1,
+              "ignoreMessages": false
             },
-            \\"errors\\": {}
+            "errors": {}
           }"
         `)
     })
@@ -171,16 +171,16 @@ describe('End-to-end tests', () => {
       expect(baselineFileContent.split('\n').length).toBeGreaterThan(6)
       expect(baselineFileContent).toMatchInlineSnapshot(`
         "{
-          \\"meta\\": {
-            \\"baselineFileVersion\\": 1,
-            \\"ignoreMessages\\": false
+          "meta": {
+            "baselineFileVersion": 1,
+            "ignoreMessages": false
           },
-          \\"errors\\": {
-            \\"74fbc5bc3645b575167c6eca966b224014ff7e42\\": {
-              \\"file\\": \\"src/util.ts\\",
-              \\"code\\": \\"TS2322\\",
-              \\"count\\": 1,
-              \\"message\\": \\"Type 'number' is not assignable to type 'string'.\\"
+          "errors": {
+            "74fbc5bc3645b575167c6eca966b224014ff7e42": {
+              "file": "src/util.ts",
+              "code": "TS2322",
+              "count": 1,
+              "message": "Type 'number' is not assignable to type 'string'."
             }
           }
         }"
@@ -194,15 +194,15 @@ describe('End-to-end tests', () => {
       const baselineFileContent = fs.readFileSync(getBaselinePath(), 'utf-8')
       expect(baselineFileContent).toMatchInlineSnapshot(`
         "{
-          \\"meta\\": {
-            \\"baselineFileVersion\\": 1,
-            \\"ignoreMessages\\": true
+          "meta": {
+            "baselineFileVersion": 1,
+            "ignoreMessages": true
           },
-          \\"errors\\": {
-            \\"4ea57c4c703d8b1df2807230c82ed3a0610c013f\\": {
-              \\"file\\": \\"src/util.ts\\",
-              \\"code\\": \\"TS2322\\",
-              \\"count\\": 1
+          "errors": {
+            "4ea57c4c703d8b1df2807230c82ed3a0610c013f": {
+              "file": "src/util.ts",
+              "code": "TS2322",
+              "count": 1
             }
           }
         }"
@@ -623,14 +623,14 @@ describe('End-to-end tests', () => {
         expect(checkOutput.stderr).toMatchInlineSnapshot(`
           "[
             {
-              \\"description\\": \\"Type 'number' is not assignable to type 'string'.\\",
-              \\"check_name\\": \\"typescript-errors\\",
-              \\"fingerprint\\": \\"74fbc5bc3645b575167c6eca966b224014ff7e42-0\\",
-              \\"severity\\": \\"minor\\",
-              \\"location\\": {
-                \\"path\\": \\"src/util.ts\\",
-                \\"lines\\": {
-                  \\"begin\\": 134
+              "description": "Type 'number' is not assignable to type 'string'.",
+              "check_name": "typescript-errors",
+              "fingerprint": "74fbc5bc3645b575167c6eca966b224014ff7e42-0",
+              "severity": "minor",
+              "location": {
+                "path": "src/util.ts",
+                "lines": {
+                  "begin": 134
                 }
               }
             }
