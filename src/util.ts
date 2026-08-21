@@ -28,7 +28,7 @@ export interface BaselineFile {
     baselineFileVersion: number
     ignoreMessages: boolean
   }
-  // eslint-disable-next-line typescript-sort-keys/interface
+  // eslint-disable-next-line perfectionist/sort-interfaces
   errors: {
     [hash: string]: ErrorSummary
   }
