@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'fs'
-import { normalize } from 'path'
+import { isAbsolute, normalize, relative, sep } from 'path'
 import objectHash from 'object-hash'
 
 export const CURRENT_BASELINE_VERSION = 1
@@ -63,6 +63,7 @@ export enum ErrorFormat {
 type ErrorOptions = {
   exclude?: string[]
   ignoreMessages: boolean
+  projectRoot?: string
 }
 
 const escapeRegExp = (value: string): string =>
@@ -100,6 +101,21 @@ export const isFileExcluded = (file: string, patterns: string[]): boolean =>
     return file === pattern || file.endsWith(`/${pattern}`)
   })
 
+/**
+ * Rewrites the absolute paths tsc prints so they are relative to the project root.
+ *
+ * Both the file a diagnostic points at and the paths spelled out inside its
+ * message feed the error hash. Left absolute, the same error hashes differently
+ * depending on where the project is checked out, so a baseline only matches on
+ * the machine that produced it. TS7016 is the common case: it names the module's
+ * path in full.
+ */
+const toRelativePath = (file: string, projectRoot: string): string =>
+  isAbsolute(file) ? relative(projectRoot, file) : file
+
+const relativizeMessagePaths = (message: string, projectRoot: string): string =>
+  message.split(`${projectRoot}${sep}`).join('')
+
 // Hash just the error summary, not the count so that we can easily
 // modify the count independently
 const getErrorSummaryHash = (
@@ -115,7 +131,7 @@ const getErrorSummaryHash = (
 
 export const parseTypeScriptErrors = (
   errorLog: string,
-  { ignoreMessages, exclude = [] }: ErrorOptions
+  { ignoreMessages, exclude = [], projectRoot = process.cwd() }: ErrorOptions
 ): ParsingResult => {
   const errorPattern = /^(.+)\((\d+),(\d+)\): error (\w+): (.+)$/
 
@@ -169,16 +185,23 @@ export const parseTypeScriptErrors = (
 
     if (!match) {
       if (currentError && /^\s+\S/.test(line)) {
-        currentError.message += `\n${line.trimEnd()}`
+        currentError.message += `\n${relativizeMessagePaths(
+          line.trimEnd(),
+          projectRoot
+        )}`
       }
       continue
     }
 
-    const [, file, lineStr, columnStr, code, message] = match
+    const [, reportedFile, lineStr, columnStr, code, message] = match
 
     // Reset first, so that the detail lines of an excluded error are dropped
     // with it rather than appended to the error above
     currentError = null
+
+    // Relativized before the exclusion test, so a pattern written against the
+    // project root still matches when tsc reports absolute paths
+    const file = toRelativePath(reportedFile, projectRoot)
 
     if (isFileExcluded(file, exclude)) {
       continue
@@ -187,7 +210,7 @@ export const parseTypeScriptErrors = (
     currentError = {
       file,
       code,
-      message,
+      message: relativizeMessagePaths(message, projectRoot),
       line: parseInt(lineStr),
       column: parseInt(columnStr)
     }

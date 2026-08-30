@@ -80,6 +80,23 @@ yarn tsc | yarn tsc-baseline save --exclude src/generated/ --exclude "**/*.gen.t
 The patterns are stored in the baseline file, so `check` reuses them on its own.
 There is no way to end up comparing a filtered baseline against an unfiltered run.
 
+### Paths in the baseline
+
+Paths are recorded relative to the directory `tsc-baseline` runs from. `tsc` reports
+some errors with an absolute path, and spells one out inside the message of others,
+`TS7016` in particular:
+
+```
+Could not find a declaration file for module 'x'.
+'/home/you/project/node_modules/x/index.js' implicitly has an 'any' type.
+```
+
+The message is part of the error hash, so an absolute path would tie the baseline to
+the machine that produced it: the same error reported from another checkout, or from
+a CI container, would not match and would count as new. The project root is therefore
+stripped from both the file and the message before hashing, which makes a baseline
+committed to a repository match everywhere it is checked out.
+
 ### Error Format Options
 
 You can specify the error format to be used when checking for new errors with the `check` command. This option affects the output to `stderr`. By default, the standard error message format is used. However, if you want the output in a GitLab-friendly format, you can use the `--error-format` option:
