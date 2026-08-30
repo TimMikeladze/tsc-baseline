@@ -219,6 +219,81 @@ src/generated/api.ts(2,2): error TS2322: Type 'string' is not assignable to type
     )
   })
 
+  describe('absolute paths', () => {
+    const projectRoot = resolve('/workspace/app')
+
+    it('reports the file relative to the project root', () => {
+      const errorLog = `${projectRoot}/src/util.ts(1,1): error TS1128: Declaration or statement expected.`
+
+      const { specificErrorsMap } = parseTypeScriptErrors(errorLog, {
+        ignoreMessages: false,
+        projectRoot
+      })
+
+      expect(specificErrorsMap.has('src/util.ts')).toBe(true)
+    })
+
+    it('strips the project root from inside the message', () => {
+      const errorLog = `src/api.ts(1,1): error TS7016: Could not find a declaration file for module 'x'. '${projectRoot}/node_modules/x/index.js' implicitly has an 'any' type.`
+
+      const { specificErrorsMap } = parseTypeScriptErrors(errorLog, {
+        ignoreMessages: false,
+        projectRoot
+      })
+
+      expect(specificErrorsMap.get('src/api.ts')?.[0].message).toBe(
+        "Could not find a declaration file for module 'x'. 'node_modules/x/index.js' implicitly has an 'any' type."
+      )
+    })
+
+    it('strips the project root from the indented detail lines', () => {
+      const errorLog = `src/api.ts(1,1): error TS2322: Type 'A' is not assignable to type 'B'.
+  The types returned by '${projectRoot}/src/b.ts' differ.`
+
+      const { specificErrorsMap } = parseTypeScriptErrors(errorLog, {
+        ignoreMessages: false,
+        projectRoot
+      })
+
+      expect(specificErrorsMap.get('src/api.ts')?.[0].message).toBe(
+        `Type 'A' is not assignable to type 'B'.
+  The types returned by 'src/b.ts' differ.`
+      )
+    })
+
+    // The point of the whole thing: a baseline saved from one checkout has to
+    // match the same error reported from another
+    it('hashes an error identically whether tsc reports it absolutely or not', () => {
+      const absolute = `${projectRoot}/src/api.ts(1,1): error TS7016: Could not find a declaration file for module 'x'. '${projectRoot}/node_modules/x/index.js' implicitly has an 'any' type.`
+      const relative = `src/api.ts(1,1): error TS7016: Could not find a declaration file for module 'x'. 'node_modules/x/index.js' implicitly has an 'any' type.`
+
+      const fromAbsolute = parseTypeScriptErrors(absolute, {
+        ignoreMessages: false,
+        projectRoot
+      }).errorSummaryMap
+      const fromRelative = parseTypeScriptErrors(relative, {
+        ignoreMessages: false,
+        projectRoot
+      }).errorSummaryMap
+
+      expect([...fromAbsolute.keys()]).toEqual([...fromRelative.keys()])
+    })
+
+    // A wildcard pattern is anchored on the whole path, so it only matches once
+    // the leading project root is gone
+    it('applies exclusion patterns to the relative path', () => {
+      const errorLog = `${projectRoot}/src/generated/api.ts(1,1): error TS1128: Declaration or statement expected.`
+
+      const { specificErrorsMap } = parseTypeScriptErrors(errorLog, {
+        ignoreMessages: false,
+        exclude: ['src/*/api.ts'],
+        projectRoot
+      })
+
+      expect(specificErrorsMap.size).toBe(0)
+    })
+  })
+
   it('writeTypeScriptErrorsToFile correctly writes errors to a file', () => {
     const errorMap = new Map<string, ErrorSummary>()
     errorMap.set('8d4f5b0a6c282e236e4f437a50410d72', {

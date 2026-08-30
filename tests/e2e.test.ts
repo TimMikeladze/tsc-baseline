@@ -374,6 +374,47 @@ describe('End-to-end tests', () => {
       })
     })
 
+    describe('absolute paths', () => {
+      // The CLI takes the project root from its working directory, and the test
+      // helper runs it from tempDir. removeIndent does not support template
+      // expressions, so these strings are built plainly.
+      const errorFrom = (root: string) =>
+        `${root}/src/api.ts(1,1): error TS7016: Could not find a declaration file for module 'x'. '${root}/node_modules/x/index.js' implicitly has an 'any' type.\n`
+
+      it('stores paths relative to the working directory', async () => {
+        await cli('save', errorFrom(path.resolve(tempDir)))
+
+        const baseline = JSON.parse(fs.readFileSync(getBaselinePath(), 'utf-8'))
+        const [error] = Object.values(baseline.errors) as {
+          file: string
+          message: string
+        }[]
+
+        expect(error.file).toBe('src/api.ts')
+        expect(error.message).toContain("'node_modules/x/index.js'")
+        expect(JSON.stringify(baseline)).not.toContain(path.resolve(tempDir))
+      })
+
+      it('matches a baseline saved from another directory', async () => {
+        await cli('save', errorFrom(path.resolve(tempDir)))
+
+        const otherDir = fs.mkdtempSync('test-dir-')
+        try {
+          // The same error, as tsc would report it from a different checkout
+          const checkOutput = await cli(
+            `check -p ${getBaselinePath()}`,
+            errorFrom(path.resolve(otherDir)),
+            otherDir
+          )
+
+          expect(checkOutput.code).toBe(0)
+          expect(checkOutput.stderr).toContain('0 new errors found')
+        } finally {
+          fs.rmSync(otherDir, { recursive: true })
+        }
+      })
+    })
+
     describe('baseline file validation', () => {
       it('gives a helpful error if no baseline file is found', async () => {
         const checkOutput = await cli('check', ' ')
