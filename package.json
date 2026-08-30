@@ -21,26 +21,31 @@
     "./dist"
   ],
   "source": "src/index.ts",
-  "types": "dist/index.d.ts",
+  "types": "./dist/index.d.ts",
   "type": "module",
   "exports": {
-    "require": "./dist/index.cjs",
-    "default": "./dist/index.modern.js"
+    "require": {
+      "types": "./dist/index.d.cts",
+      "default": "./dist/index.cjs"
+    },
+    "default": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "main": "./dist/index.cjs",
-  "module": "./dist/index.module.js",
-  "unpkg": "./dist/index.umd.js",
-  "bin": "./dist/cli.module.js",
+  "module": "./dist/index.js",
+  "bin": "./dist/cli.js",
   "scripts": {
-    "dev": "microbundle watch src/{index,cli}.ts -f esm",
-    "build": "yarn link:self && rm -rf dist && microbundle src/{index,cli}.ts && yalc publish",
+    "prepare": "husky",
+    "dev": "tsup --watch",
+    "build": "yarn link:self && rm -rf dist && tsup && yalc publish",
     "lint": "eslint --fix \"src/**/*.+(ts|tsx|js|jsx)\" && prettier --write .",
     "test": "vitest --passWithNoTests",
     "test:ci": "vitest run --coverage --passWithNoTests",
     "type-check": "tsc",
     "release": "release-it",
-    "commit": "commit-it",
-    "cli": "yarn build -f modern && node dist/cli.modern.js",
+    "cli": "yarn build && node dist/cli.js",
     "link:self": "yalc link && yarn link"
   },
   "release-it": {
@@ -58,11 +63,6 @@
     "**/*.{ts,js,jsx,tsx}": "eslint --fix",
     "*": "prettier --write"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.6",
     "@eslint/js": "10.0.1",
@@ -71,7 +71,6 @@
     "@typescript-eslint/eslint-plugin": "8.68.0",
     "@typescript-eslint/parser": "8.68.0",
     "@vitest/coverage-v8": "4.1.11",
-    "commit-it": "0.0.11",
     "eslint": "10.9.1",
     "eslint-config-prettier": "10.1.8",
     "eslint-config-standard": "17.1.0",
@@ -84,11 +83,11 @@
     "eslint-plugin-promise": "7.3.0",
     "eslint-plugin-sort-class-members": "1.22.1",
     "eslint-plugin-unused-imports": "4.4.1",
-    "husky": "8.0.3",
-    "lint-staged": "13.3.0",
-    "microbundle": "0.15.1",
+    "husky": "9.1.7",
+    "lint-staged": "17.4.1",
     "prettier": "3.9.6",
-    "release-it": "18.1.2",
+    "release-it": "21.0.2",
+    "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.11",
     "yalc": "1.0.0-pre.53"
@@ -98,8 +97,6 @@
     "object-hash": "3.0.0"
   },
   "resolutions": {
-    "semver": ">=6.3.1",
-    "ip": ">=2.0.1",
-    "@types/parse-path": "7.0.3"
+    "esbuild": ">=0.28.1"
   }
 }

@@ -9,10 +9,10 @@ import { ErrorFormat } from '../src'
  * NOTE: This is the compiled CLI for this package to test that everything works end-to-end
  * and avoid bugs like this: https://github.com/TimMikeladze/tsc-baseline/issues/21
  *
- * You'll need to compile the CLI with `yarn dev` and make sure it successfully compiles the
+ * You'll need to compile the CLI with `yarn build` and make sure it successfully compiles the
  * latest changes to be able to test them here.
  */
-const CLI_PATH = path.resolve(__dirname, '../dist/cli.module.js')
+const CLI_PATH = path.resolve(__dirname, '../dist/cli.js')
 
 let tempDir: string
 
@@ -98,7 +98,7 @@ describe('End-to-end tests', () => {
         [
           'The end-to-end tests require that this package is built.',
           '',
-          'Run "yarn dev" to build the package into the dist/ directory.'
+          'Run "yarn build" to build the package into the dist/ directory.'
         ].join('\n')
       )
     }
@@ -131,8 +131,8 @@ describe('End-to-end tests', () => {
                                    counts errors by code.
         --exclude <pattern>        Ignores errors in files matching this pattern.
                                    Repeat the flag for several patterns. A trailing
-                                   \\"/\\" excludes a whole directory, \\"*\\" matches within
-                                   a path segment and \\"**\\" across segments.
+                                   "/" excludes a whole directory, "*" matches within
+                                   a path segment and "**" across segments.
         -h, --help                 display help for command
 
       Commands:
