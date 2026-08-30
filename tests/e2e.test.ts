@@ -129,6 +129,10 @@ describe('End-to-end tests', () => {
                                    to .tsc-baseline.json
         --ignoreMessages           Ignores specific type error messages and only
                                    counts errors by code.
+        --exclude <pattern>        Ignores errors in files matching this pattern.
+                                   Repeat the flag for several patterns. A trailing
+                                   \\"/\\" excludes a whole directory, \\"*\\" matches within
+                                   a path segment and \\"**\\" across segments.
         -h, --help                 display help for command
 
       Commands:
@@ -331,6 +335,42 @@ describe('End-to-end tests', () => {
         )
 
         expect(checkOutput.stderr).toContain('src/other.ts')
+      })
+    })
+
+    describe('--exclude', () => {
+      const errorsInGeneratedCode = removeIndent`
+        src/generated/api.ts(1,1): error TS2322: Type 'number' is not assignable to type 'string'.
+        src/util.ts(134,7): error TS2322: Type 'number' is not assignable to type 'string'.
+      `
+
+      it('records the exclusions in the baseline file', async () => {
+        await cli('save --exclude src/generated/', errorsInGeneratedCode)
+
+        const baseline = JSON.parse(fs.readFileSync(getBaselinePath(), 'utf-8'))
+        expect(baseline.meta.exclude).toEqual(['src/generated/'])
+        expect(JSON.stringify(baseline.errors)).not.toContain('src/generated')
+      })
+
+      it('reuses the exclusions of the baseline on check', async () => {
+        await cli('save --exclude src/generated/', ' ')
+
+        // The excluded error would otherwise count as new
+        const checkOutput = await cli('check', errorsInGeneratedCode)
+
+        expect(checkOutput.code).toBe(1)
+        expect(checkOutput.stderr).toContain('1 new error found')
+        expect(checkOutput.stderr).not.toContain('src/generated')
+      })
+
+      it('accepts the flag several times', async () => {
+        await cli(
+          'save --exclude src/generated/ --exclude **/*.gen.ts',
+          errorsInGeneratedCode
+        )
+
+        const baseline = JSON.parse(fs.readFileSync(getBaselinePath(), 'utf-8'))
+        expect(baseline.meta.exclude).toEqual(['src/generated/', '**/*.gen.ts'])
       })
     })
 

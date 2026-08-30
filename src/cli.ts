@@ -41,11 +41,20 @@ import { rmSync } from 'fs'
     'Ignores specific type error messages and only counts errors by code.'
   )
 
+  program.option(
+    '--exclude <pattern>',
+    'Ignores errors in files matching this pattern. Repeat the flag for several patterns. A trailing "/" excludes a whole directory, "*" matches within a path segment and "**" across segments.',
+    (pattern: string, previous: string[] = []) => [...previous, pattern]
+  )
+
   const getConfig = () => {
     const config = program.opts()
     return {
       path: resolve(process.cwd(), config.path || '.tsc-baseline.json'),
-      ignoreMessages: config.ignoreMessages || false
+      ignoreMessages: config.ignoreMessages || false,
+      // Deduplicated because argv is parsed more than once below, which would
+      // otherwise make the collected patterns pile up
+      exclude: Array.from(new Set<string>(config.exclude || []))
     }
   }
 
@@ -55,7 +64,8 @@ import { rmSync } from 'fs'
       if (message) {
         const config = getConfig()
         const errorOptions = {
-          ignoreMessages: config.ignoreMessages
+          ignoreMessages: config.ignoreMessages,
+          exclude: config.exclude
         }
         writeTypeScriptErrorsToFile(
           parseTypeScriptErrors(message, errorOptions).errorSummaryMap,
@@ -138,8 +148,11 @@ Are your installed packages up to date?
           }
 
           const oldErrorSummaries = getErrorSummaryMap(baselineFile)
+          // Exclusions come from the baseline, so the check cannot end up
+          // comparing against a set of errors that was filtered differently
           const errorOptions = {
-            ignoreMessages: baselineFile.meta.ignoreMessages
+            ignoreMessages: baselineFile.meta.ignoreMessages,
+            exclude: baselineFile.meta.exclude ?? []
           }
           const { specificErrorsMap, errorSummaryMap } = parseTypeScriptErrors(
             message,

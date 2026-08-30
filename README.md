@@ -63,6 +63,23 @@ A changed path matches an error when the two are equal, or when the changed path
 ends with the error path, so a list of repo-relative paths still matches when `tsc`
 runs from a subdirectory.
 
+### Excluding files
+
+Generated code (API clients, compiled output, schema types) produces errors nobody
+is going to fix by hand, and re-generating it churns the baseline for no reason.
+`--exclude` drops those files from both the baseline and the check:
+
+```console
+yarn tsc | yarn tsc-baseline save --exclude src/generated/ --exclude "**/*.gen.ts"
+```
+
+- a pattern ending with `/` excludes a whole directory,
+- `*` matches within a path segment, `**` matches across segments,
+- anything else matches the path itself or its trailing part.
+
+The patterns are stored in the baseline file, so `check` reuses them on its own.
+There is no way to end up comparing a filtered baseline against an unfiltered run.
+
 ### Error Format Options
 
 You can specify the error format to be used when checking for new errors with the `check` command. This option affects the output to `stderr`. By default, the standard error message format is used. However, if you want the output in a GitLab-friendly format, you can use the `--error-format` option:

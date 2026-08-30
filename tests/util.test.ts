@@ -13,6 +13,7 @@ import {
   getNewErrors,
   getTotalErrorsCount,
   filterErrorsByFiles,
+  isFileExcluded,
   toHumanReadableText,
   toGitLabOutputFormat,
   addHashToBaseline,
@@ -144,6 +145,77 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
 
     expect(errors[0].message).toBe(
       "',' expected.\n  This detail belongs to the error above."
+    )
+  })
+
+  describe('isFileExcluded', () => {
+    it('excludes everything under a directory pattern', () => {
+      expect(isFileExcluded('src/generated/api.ts', ['src/generated/'])).toBe(
+        true
+      )
+      expect(isFileExcluded('packages/web/dist/a.ts', ['dist/'])).toBe(true)
+      expect(isFileExcluded('src/generated.ts', ['src/generated/'])).toBe(false)
+    })
+
+    it('matches a single star within a path segment only', () => {
+      expect(isFileExcluded('src/a.gen.ts', ['src/*.gen.ts'])).toBe(true)
+      expect(isFileExcluded('src/nested/a.gen.ts', ['src/*.gen.ts'])).toBe(
+        false
+      )
+    })
+
+    it('matches a double star across path segments', () => {
+      expect(isFileExcluded('src/nested/a.gen.ts', ['src/**/*.gen.ts'])).toBe(
+        true
+      )
+    })
+
+    it('matches an exact path or its trailing part', () => {
+      expect(isFileExcluded('src/a.ts', ['src/a.ts'])).toBe(true)
+      expect(isFileExcluded('packages/web/src/a.ts', ['src/a.ts'])).toBe(true)
+      expect(isFileExcluded('src/ab.ts', ['src/a.ts'])).toBe(false)
+    })
+
+    it('treats regex characters in a pattern literally', () => {
+      expect(isFileExcluded('src/a+b.ts', ['src/a+b.ts'])).toBe(true)
+      expect(isFileExcluded('src/axb.ts', ['src/a+b.ts'])).toBe(false)
+      expect(isFileExcluded('src/axxb.ts', ['src/a.*b.ts'])).toBe(false)
+    })
+
+    it('excludes nothing when no pattern is given', () => {
+      expect(isFileExcluded('src/a.ts', [])).toBe(false)
+    })
+  })
+
+  it('parseTypeScriptErrors skips errors in excluded files', () => {
+    const errorLog = `src/generated/api.ts(1,1): error TS2322: Type 'string' is not assignable to type 'number'.
+src/util.ts(2,2): error TS1128: Declaration or statement expected.`
+
+    const { specificErrorsMap, errorSummaryMap } = parseTypeScriptErrors(
+      errorLog,
+      { ignoreMessages: false, exclude: ['src/generated/'] }
+    )
+
+    expect(specificErrorsMap.size).toBe(1)
+    expect(specificErrorsMap.has('src/generated/api.ts')).toBe(false)
+    expect(getTotalErrorsCount(errorSummaryMap)).toBe(1)
+  })
+
+  it('drops the indented details of an excluded error', () => {
+    const errorLog = `src/util.ts(1,1): error TS1128: Declaration or statement expected.
+src/generated/api.ts(2,2): error TS2322: Type 'string' is not assignable to type 'number'.
+  Types of property 'a' are incompatible.`
+
+    const { specificErrorsMap } = parseTypeScriptErrors(errorLog, {
+      ignoreMessages: false,
+      exclude: ['src/generated/']
+    })
+
+    // The excluded error is gone, and its detail lines have not been appended
+    // to the error printed above it
+    expect(specificErrorsMap.has('src/generated/api.ts')).toBe(false)
+    expect(specificErrorsMap.get('src/util.ts')?.[0].message).toBe(
+      'Declaration or statement expected.'
     )
   })
 
