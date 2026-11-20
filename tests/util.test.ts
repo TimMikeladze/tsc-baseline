@@ -148,6 +148,28 @@ info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this comm
     )
   })
 
+  it.each(['\u2028', '\u2029'])(
+    'parses positioned diagnostics with a Unicode line separator %j',
+    (separator) => {
+      const file = `src/odd${separator}name.ts`
+      const message = `Type 'x${separator}y' is not assignable to type 'number'.`
+      const output = `${file}(1,2): error TS2322: ${message}\r\n`
+      const { specificErrorsMap } = parseTypeScriptErrors(output, {
+        ignoreMessages: false
+      })
+
+      expect(specificErrorsMap.get(file)).toEqual([
+        { file, message, code: 'TS2322', line: 1, column: 2 }
+      ])
+      expect(
+        parseTypeScriptErrors(output, {
+          ignoreMessages: false,
+          exclude: ['src/**name.ts']
+        }).errorSummaryMap.size
+      ).toBe(0)
+    }
+  )
+
   describe('isFileExcluded', () => {
     it('excludes everything under a directory pattern', () => {
       expect(isFileExcluded('src/generated/api.ts', ['src/generated/'])).toBe(
