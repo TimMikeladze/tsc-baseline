@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 
 import fs from 'fs'
 import path from 'path'
-import { ExecException, exec } from 'child_process'
+import { ExecException, exec, spawnSync } from 'child_process'
 import { ErrorFormat } from '../src'
 
 /**
@@ -59,9 +59,7 @@ const cli = (
         })
       }
     )
-    // NOTE: Currently running this cli utility without stdin isn't fully supported
-    // because process.stdin.isTTY (which is currently used to check if the CLI is
-    // run without stdio) isn't defined for child processes: https://github.com/nodejs/node/issues/51750
+    // An empty string closes the pipe without writing any bytes.
     if (stdin !== null) {
       cliProcess.stdin?.write(stdin)
       cliProcess.stdin?.end()
@@ -146,8 +144,9 @@ describe('End-to-end tests', () => {
   })
 
   describe('save', () => {
-    it('writes a file with no recorded errors when there are no TypeScript errors', async () => {
-      const output = await cli('save', ' ')
+    it('replaces the baseline with no recorded errors when the pipe is empty', async () => {
+      expect((await cli('save', basicTsErrorOutput)).code).toBe(0)
+      const output = await cli('save', '')
 
       expect(output.error).toBeNull()
       expect(output.code).toBe(0)
@@ -165,6 +164,19 @@ describe('End-to-end tests', () => {
             "errors": {}
           }"
         `)
+    })
+
+    it('leaves the baseline alone when stdin is disconnected', async () => {
+      expect((await cli('save', basicTsErrorOutput)).code).toBe(0)
+      const baseline = fs.readFileSync(getBaselinePath(), 'utf-8')
+
+      const output = spawnSync(process.execPath, [CLI_PATH, 'save'], {
+        cwd: tempDir,
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+
+      expect(output.status).toBe(0)
+      expect(fs.readFileSync(getBaselinePath(), 'utf-8')).toBe(baseline)
     })
 
     it('saves errors on separate lines so that it works well with version control', async () => {
@@ -215,6 +227,25 @@ describe('End-to-end tests', () => {
   })
 
   describe('check', () => {
+    it('reports a stale entry when the compiler pipe is empty', async () => {
+      expect((await cli('save', basicTsErrorOutput)).code).toBe(0)
+
+      const output = await cli('check --reportUnmatchedIgnoredErrors', '')
+
+      expect(output.code).toBe(1)
+      expect(output.stderr).toContain('0 new errors found.')
+      expect(output.stderr).toContain('Count of unmatched ignored errors: 1')
+    })
+
+    it('prints an empty GitLab report for an empty pipe and baseline', async () => {
+      expect((await cli('save', ' ')).code).toBe(0)
+
+      const output = await cli('check --error-format gitlab', '')
+
+      expect(output.code).toBe(0)
+      expect(JSON.parse(output.stderr)).toEqual([])
+    })
+
     it('does not show errors if all the errors already exist', async () => {
       await cli('save', basicTsErrorOutput)
       const checkOutput = await cli('check', basicTsErrorOutput)
@@ -733,5 +764,74 @@ describe('End-to-end tests', () => {
         `)
       })
     })
+  })
+
+  describe('compiler diagnostics without a source position', () => {
+    const diagnostics = [
+      "error TS18003: No inputs were found in config file 'tsconfig.json'.",
+      "error TS5058: The specified path does not exist: 'x(1,2): error TS2322: missing.json'.",
+      "error TS6305: Output file 'lib/index.d.ts' has not been built from source file 'lib/index.ts'.",
+      '  The file is in the program because:',
+      '    Matched by include pattern'
+    ]
+    const compilerOutput = [basicTsErrorOutput, ...diagnostics].join('\r\n')
+
+    it('reports the compiler diagnostics before checking the baseline', async () => {
+      const output = await cli(
+        'check --reportUnmatchedIgnoredErrors --changedFiles changed.txt',
+        compilerOutput
+      )
+
+      expect(output.code).toBe(1)
+      for (const diagnostic of diagnostics) {
+        expect(output.stderr).toContain(diagnostic)
+      }
+      expect(output.stderr).not.toContain('Unable to read')
+      expect(output.stderr).not.toContain('Unmatched ignored errors:')
+    })
+
+    it('reports the compiler diagnostics and preserves an existing baseline', async () => {
+      expect((await cli('save', basicTsErrorOutput)).code).toBe(0)
+      const baseline = fs.readFileSync(getBaselinePath(), 'utf-8')
+
+      const output = await cli('save', compilerOutput)
+
+      expect(output.code).toBe(1)
+      for (const diagnostic of diagnostics) {
+        expect(output.stderr).toContain(diagnostic)
+      }
+      expect(fs.readFileSync(getBaselinePath(), 'utf-8')).toBe(baseline)
+    })
+
+    it('reports a colorized compiler diagnostic', async () => {
+      const output = await cli(
+        'check',
+        '\x1b[91merror\x1b[0m\x1b[90m TS2688: \x1b[0mCannot find type definition file for "missing".\n'
+      )
+
+      expect(output.code).toBe(1)
+      expect(output.stderr).toContain(
+        'error TS2688: Cannot find type definition file for "missing".'
+      )
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'still saves a positioned error when the filename starts with a diagnostic prefix',
+      async () => {
+        const file = 'error TS1234: example.ts'
+        fs.writeFileSync(path.join(tempDir, file), '')
+
+        const output = await cli(
+          'save',
+          `${file}(1,2): error TS2322: Type 'string' is not assignable to type 'number'.\n`
+        )
+
+        expect(output.code).toBe(0)
+        const baseline = JSON.parse(fs.readFileSync(getBaselinePath(), 'utf-8'))
+        expect(Object.values(baseline.errors)).toEqual([
+          expect.objectContaining({ file, code: 'TS2322' })
+        ])
+      }
+    )
   })
 })

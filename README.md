@@ -46,6 +46,22 @@ When you're done, you can delete the baseline file.
 yarn tsc-baseline clear
 ```
 
+### Empty compiler output and compiler errors
+
+When the compiler pipe is empty, `save` writes an empty baseline. Use
+`check --reportUnmatchedIgnoredErrors` to report entries that are still in the
+baseline after their errors have been fixed. The command exits with status 1 if
+any entries are stale.
+
+Some TypeScript diagnostics, such as `TS18003` for a project with no matching
+input files, have no source position. Both commands print these diagnostics to
+stderr and exit with status 1 before comparing or writing the baseline.
+
+An empty pipe carries no compiler exit status, so a silent compiler failure can
+still produce an empty baseline. Shells with `pipefail` can report that failure
+as the pipeline's exit status. They also report nonzero status when `tsc` finds
+errors already in the baseline.
+
 ### Scoping the check to changed files
 
 On a large baseline, a pull request can fail on errors it has nothing to do with: a

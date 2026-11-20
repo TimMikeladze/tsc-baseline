@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'fs'
 import { isAbsolute, normalize, relative, sep } from 'path'
 import objectHash from 'object-hash'
+import { positionedErrorPattern } from './diagnostics'
 
 export const CURRENT_BASELINE_VERSION = 1
 
@@ -77,7 +78,7 @@ const patternToRegExp = (pattern: string): RegExp => {
     .map((part) => part.split('*').map(escapeRegExp).join('[^/]*'))
     .join('.*')
 
-  return new RegExp(`^${source}$`)
+  return new RegExp(`^${source}$`, 's')
 }
 
 /**
@@ -133,9 +134,7 @@ export const parseTypeScriptErrors = (
   errorLog: string,
   { ignoreMessages, exclude = [], projectRoot = process.cwd() }: ErrorOptions
 ): ParsingResult => {
-  const errorPattern = /^(.+)\((\d+),(\d+)\): error (\w+): (.+)$/
-
-  const lines = errorLog.split('\n')
+  const lines = errorLog.split(/\r?\n/)
   const specificErrorsMap: SpecificErrorsMap = new Map<
     string,
     SpecificError[]
@@ -181,7 +180,7 @@ export const parseTypeScriptErrors = (
   let currentError: SpecificError | null = null
 
   for (const line of lines) {
-    const match = line.match(errorPattern)
+    const match = line.match(positionedErrorPattern)
 
     if (!match) {
       if (currentError && /^\s+\S/.test(line)) {
